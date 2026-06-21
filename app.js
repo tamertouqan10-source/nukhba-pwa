@@ -28,6 +28,42 @@ function closeModal() {
   render();
 }
 
+
+function openHowItWorks() {
+  document.querySelector('.modal-overlay')?.remove();
+  const html = `
+  <div class='modal-overlay' onclick='if(event.target===this)this.remove()' style='z-index:200'>
+    <div class='modal' style='max-width:520px'>
+      <div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:20px'>
+        <div style='font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--text-1)'>How Nukhba works</div>
+        <button onclick='this.closest(\".modal-overlay\").remove()' style='width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px'>
+          <i class='ti ti-x'></i>
+        </button>
+      </div>
+      <div style='display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--border-2)'>
+        <div style='width:40px;height:40px;border-radius:10px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0'><i class='ti ti-brain' style='font-size:18px;color:var(--accent)'></i></div>
+        <div><div style='font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;margin-bottom:3px'>Step 01</div><div style='font-size:14px;font-weight:600;color:var(--text-1);margin-bottom:4px'>Smart matching</div><div style='font-size:12px;color:var(--text-2);line-height:1.6'>Every student takes a 5-minute quiz. Our algorithm pairs them with a tutor by learning style, pace, subject, and personality.</div></div>
+      </div>
+      <div style='display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--border-2)'>
+        <div style='width:40px;height:40px;border-radius:10px;background:var(--teal-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0'><i class='ti ti-calendar-check' style='font-size:18px;color:var(--teal)'></i></div>
+        <div><div style='font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;margin-bottom:3px'>Step 02</div><div style='font-size:14px;font-weight:600;color:var(--text-1);margin-bottom:4px'>Weekly sessions</div><div style='font-size:12px;color:var(--text-2);line-height:1.6'>Students book sessions in the app, get automatic meeting links, and receive smart reminders to prevent no-shows.</div></div>
+      </div>
+      <div style='display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--border-2)'>
+        <div style='width:40px;height:40px;border-radius:10px;background:var(--amber-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0'><i class='ti ti-chart-line' style='font-size:18px;color:var(--amber)'></i></div>
+        <div><div style='font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;margin-bottom:3px'>Step 03</div><div style='font-size:14px;font-weight:600;color:var(--text-1);margin-bottom:4px'>Progress tracked automatically</div><div style='font-size:12px;color:var(--text-2);line-height:1.6'>AI drafts session notes from the tutor checklist. Parents see the skill map update in real time after every session.</div></div>
+      </div>
+      <div style='display:flex;gap:14px;padding:14px 0'>
+        <div style='width:40px;height:40px;border-radius:10px;background:var(--danger-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0'><i class='ti ti-coins' style='font-size:18px;color:var(--danger)'></i></div>
+        <div><div style='font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;margin-bottom:3px'>Step 04</div><div style='font-size:14px;font-weight:600;color:var(--text-1);margin-bottom:4px'>Points for real effort</div><div style='font-size:12px;color:var(--text-2);line-height:1.6'>Students earn points for attendance and homework. Spend them on real rewards — all teacher-approved.</div></div>
+      </div>
+      <button onclick='this.closest(\".modal-overlay\").remove();openModal(\"login\")' style='width:100%;margin-top:20px;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px'>
+        <i class='ti ti-sparkles'></i> Join the program
+      </button>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
 function setUser(role, name) {
   State.user = { role, name };
   State.modal = null;
@@ -198,7 +234,7 @@ function renderLanding() {
         <button class="btn btn-primary btn-lg" onclick="openModal('login')">
           <i class="ti ti-sparkles"></i> Join the program
         </button>
-        <button class="btn btn-secondary btn-lg" onclick="openModal('login')">
+        <button class="btn btn-secondary btn-lg" onclick="openHowItWorks()">
           <i class="ti ti-eye"></i> See how it works
         </button>
       </div>
@@ -263,11 +299,14 @@ function renderLoginModal() {
   return `
   <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal">
-      <div class="modal-logo">
-        <div class="nav-logo-mark">N</div>
-        <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="nav-logo-mark">N</div>
           <div style="font-size:16px;font-weight:700;color:var(--text-1)">Nukhba</div>
         </div>
+        <button onclick="closeModal()" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;transition:all .15s" onmouseover="this.style.background='var(--surface-3)'" onmouseout="this.style.background='var(--surface-2)'">
+          <i class="ti ti-x"></i>
+        </button>
       </div>
       <div class="modal-title">Welcome back</div>
       <div class="modal-sub">Sign in to your portal — or try a demo below</div>
@@ -1509,3 +1548,4 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   });
 }
+
