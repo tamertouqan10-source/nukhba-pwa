@@ -304,7 +304,7 @@ function renderLoginModal() {
           <div class="nav-logo-mark">N</div>
           <div style="font-size:16px;font-weight:700;color:var(--text-1)">Nukhba</div>
         </div>
-        <button onclick="closeModal()" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;transition:all .15s" onmouseover="this.style.background='var(--surface-3)'" onmouseout="this.style.background='var(--surface-2)'">
+        <button onclick="State.modal=null;render()" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;transition:all .15s" onmouseover="this.style.background='var(--surface-3)'" onmouseout="this.style.background='var(--surface-2)'">
           <i class="ti ti-x"></i>
         </button>
       </div>
