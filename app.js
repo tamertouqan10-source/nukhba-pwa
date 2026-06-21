@@ -297,20 +297,19 @@ function renderLanding() {
 // ---- LOGIN MODAL ----
 function renderLoginModal() {
   return `
-  <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal-overlay" id="login-modal" onclick="if(event.target.id==='login-modal')document.getElementById('login-modal').remove()">
     <div class="modal">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
         <div style="display:flex;align-items:center;gap:10px">
           <div class="nav-logo-mark">N</div>
           <div style="font-size:16px;font-weight:700;color:var(--text-1)">Nukhba</div>
         </div>
-        <button onclick="State.modal=null;render()" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;transition:all .15s" onmouseover="this.style.background='var(--surface-3)'" onmouseout="this.style.background='var(--surface-2)'">
+        <button onclick="document.getElementById('login-modal').remove()" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px">
           <i class="ti ti-x"></i>
         </button>
       </div>
       <div class="modal-title">Welcome back</div>
       <div class="modal-sub">Sign in to your portal — or try a demo below</div>
-
       <div class="form-group">
         <label class="form-label">Email</label>
         <input class="form-input" type="email" placeholder="you@example.com" />
@@ -322,9 +321,7 @@ function renderLoginModal() {
       <button class="btn btn-primary" style="width:100%">
         <i class="ti ti-login"></i> Sign in
       </button>
-
       <div class="modal-divider">or try a demo portal</div>
-
       <div class="role-grid">
         <button class="role-btn" onclick="setUser('student','Lena M.')">
           <i class="ti ti-school"></i> Student
@@ -339,14 +336,12 @@ function renderLoginModal() {
           <i class="ti ti-shield-check"></i> Admin
         </button>
       </div>
-
       <div class="modal-footer">
         Don't have an account? <a href="#" onclick="toast('Contact your program admin to join','info')">Request access</a>
       </div>
     </div>
   </div>`;
 }
-
 // ---- APP SHELL ----
 function renderShell(navItems, pageContent, title) {
   const u = State.user;
