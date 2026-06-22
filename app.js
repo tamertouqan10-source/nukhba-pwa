@@ -228,37 +228,39 @@ function renderLanding() {
   parts.push('</div>');
   parts.push('</div>');
 
-  // RIGHT — creative stats card
+  // RIGHT — tutor match card
   parts.push('<div class="hero-right">');
-  parts.push('<div class="hero-card">');
-  parts.push('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">');
-  parts.push('<div style="font-family:var(--font-display);font-size:17px;font-weight:600;color:var(--text-1)">Program overview</div>');
-  parts.push('<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--teal);font-weight:500;background:var(--teal-soft);padding:3px 10px;border-radius:20px"><span style="width:6px;height:6px;border-radius:50%;background:var(--teal);display:inline-block"></span>Live</span>');
+  parts.push('<div class="hero-card" style="padding:0;overflow:hidden">');
+  parts.push('<div style="padding:22px 22px 18px;background:var(--surface)">');
+  parts.push('<div style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px">Your matched tutor</div>');
+  parts.push('<div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">');
+  parts.push('<div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--accent-soft),var(--teal-soft));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:20px;font-weight:600;color:var(--accent);flex-shrink:0;border:2px solid var(--border)">A</div>');
+  parts.push('<div style="flex:1"><div style="font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--text-1)">Ahmed H.</div><div style="font-size:12px;color:var(--text-3);margin-top:2px">SAT Math specialist · 4.9 rating</div></div>');
+  parts.push('<div style="text-align:center;background:var(--teal-soft);border-radius:var(--r-md);padding:8px 12px"><div style="font-family:var(--font-display);font-size:20px;font-weight:600;color:var(--teal)">94%</div><div style="font-size:10px;color:var(--teal);text-transform:uppercase;letter-spacing:.04em">match</div></div>');
   parts.push('</div>');
-  parts.push('<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px">');
-  var stats = [['94%','Avg match score','v'],['100%','Attendance rate','g'],['12','Skills per student','a']];
-  stats.forEach(function(st) {
-    var colors = {v:'var(--accent)',g:'var(--teal)',a:'var(--amber)'};
-    var bgs = {v:'var(--accent-soft)',g:'var(--teal-soft)',a:'var(--amber-soft)'};
-    parts.push('<div style="padding:14px 12px;background:' + bgs[st[2]] + ';border-radius:var(--r-md);text-align:center;border:1px solid rgba(0,0,0,0.05)">');
-    parts.push('<div style="font-family:var(--font-display);font-size:26px;font-weight:600;color:' + colors[st[2]] + ';margin-bottom:4px">' + st[0] + '</div>');
-    parts.push('<div style="font-size:11px;color:var(--text-3);line-height:1.3">' + st[1] + '</div>');
-    parts.push('</div>');
+  parts.push('<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:0">');
+  var tags = ['Patient','Visual learner','SAT expert','Structured'];
+  tags.forEach(function(tag) {
+    parts.push('<span style="font-size:11px;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);padding:4px 10px;border-radius:20px">' + tag + '</span>');
   });
   parts.push('</div>');
-  parts.push('<div style="font-size:11px;font-weight:500;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">Recent sessions</div>');
-  var sessions = [['Lena M.','SAT Math','Session 12','On track'],['Omar B.','Literature','Session 8','On track'],['Yara S.','Math basics','Session 5','Active']];
-  sessions.forEach(function(s) {
-    parts.push('<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-2)">');
-    parts.push('<div style="width:30px;height:30px;border-radius:50%;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--accent);flex-shrink:0">' + s[0][0] + '</div>');
-    parts.push('<div style="flex:1"><div style="font-size:13px;font-weight:500;color:var(--text-1)">' + s[0] + '</div><div style="font-size:11px;color:var(--text-3)">' + s[1] + ' — ' + s[2] + '</div></div>');
-    parts.push('<span style="font-size:10px;font-weight:500;color:var(--teal);background:var(--teal-soft);padding:2px 8px;border-radius:10px">' + s[3] + '</span>');
-    parts.push('</div>');
-  });
-  // Bottom match badge
-  parts.push('<div style="display:flex;align-items:center;justify-content:space-between;padding:14px;background:var(--accent-soft);border-radius:var(--r-md);margin-top:10px;border:1px solid rgba(107,76,59,0.1)">');
-  parts.push('<div><div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2);margin-bottom:2px">Smart matching</div><div style="font-size:12px;color:var(--text-3)">AI-powered compatibility scores</div></div>');
-  parts.push('<div style="font-family:var(--font-display);font-size:32px;font-weight:600;color:var(--accent)">94%</div>');
+  parts.push('</div>');
+  parts.push('<div style="display:flex;align-items:center;gap:0;position:relative">');
+  parts.push('<div style="flex:1;height:1px;background:var(--border)"></div>');
+  parts.push('<div style="padding:6px 14px;background:var(--accent-soft);border:1px solid rgba(107,76,59,0.15);border-radius:20px;font-size:11px;font-weight:500;color:var(--accent);white-space:nowrap;position:relative;z-index:1">AI matched for you</div>');
+  parts.push('<div style="flex:1;height:1px;background:var(--border)"></div>');
+  parts.push('</div>');
+  parts.push('<div style="padding:18px 22px 22px;background:var(--bg-2)">');
+  parts.push('<div style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px">Student profile</div>');
+  parts.push('<div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">');
+  parts.push('<div style="width:52px;height:52px;border-radius:50%;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:20px;font-weight:600;color:var(--accent);flex-shrink:0;border:2px solid var(--border)">L</div>');
+  parts.push('<div style="flex:1"><div style="font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--text-1)">Lena M.</div><div style="font-size:12px;color:var(--text-3);margin-top:2px">Grade 8 · SAT Math · Visual learner</div></div>');
+  parts.push('</div>');
+  parts.push('<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 14px">');
+  parts.push('<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:12px;color:var(--text-2)">SAT 680+ goal</span><span style="font-size:12px;font-weight:600;color:var(--teal)">67% there</span></div>');
+  parts.push('<div style="height:5px;background:var(--surface-2);border-radius:3px"><div style="height:5px;width:67%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--teal))"></div></div>');
+  parts.push('<div style="font-size:11px;color:var(--text-3);margin-top:6px">Est. 6 more sessions to reach goal</div>');
+  parts.push('</div>');
   parts.push('</div>');
   parts.push('</div></div>');
   parts.push('</section>');
