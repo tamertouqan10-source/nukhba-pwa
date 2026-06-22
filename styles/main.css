@@ -1150,3 +1150,41 @@ ul { list-style: none; }
   .feature-strip { grid-template-columns: 1fr; }
   .nav { padding: 14px 16px; }
 }
+
+/* ============================================
+   ANIMATED HERO WORD
+   ============================================ */
+
+.hero-word-anim {
+  display: inline-block;
+  color: var(--accent);
+  font-style: italic;
+  position: relative;
+}
+
+.hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(38px, 5vw, 68px);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -1px;
+  color: var(--text-1);
+  max-width: 600px;
+  margin-bottom: 22px;
+}
+
+@keyframes wordFadeUp {
+  0%   { opacity: 0; transform: translateY(14px); }
+  15%  { opacity: 1; transform: translateY(0); }
+  80%  { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-14px); }
+}
+
+@keyframes wordFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.word-animate {
+  animation: wordFadeUp 2.4s ease forwards;
+}

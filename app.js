@@ -56,9 +56,9 @@ function openHowItWorks() {
   steps.forEach(function(s, i) {
     const border = i < steps.length - 1 ? 'border-bottom:1px solid var(--border-2);' : '';
     parts.push('<div style="display:flex;gap:14px;padding:14px 0;' + border + '">');
-    parts.push('<div style="width:38px;height:38px;border-radius:10px;background:' + s[4] + ';display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ' + s[0] + '" style="font-size:17px;color:' + s[1] + '"></i></div>');
-    parts.push('<div><div style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Step ' + s[2] + '</div>');
-    parts.push('<div style="font-size:14px;font-weight:600;color:var(--text-1);margin-bottom:4px">' + s[3] + '</div>');
+    parts.push('<div style="width:38px;height:38px;border-radius:10px;background:' + s[2] + ';display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ' + s[0] + '" style="font-size:17px;color:' + s[1] + '"></i></div>');
+    parts.push('<div><div style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Step ' + s[3] + '</div>');
+    parts.push('<div style="font-size:14px;font-weight:600;color:var(--text-1);margin-bottom:4px">' + s[4] + '</div>');
     parts.push('<div style="font-size:12px;color:var(--text-2);line-height:1.6">' + s[5] + '</div></div></div>');
   });
 
@@ -214,7 +214,7 @@ function renderLanding() {
   // LEFT
   parts.push('<div class="hero-left">');
   parts.push('<div class="hero-eyebrow"><div class="hero-eyebrow-dot"></div>Free — Nonprofit — K–12</div>');
-  parts.push('<h1 class="hero-title">Where the right tutor meets<br><em>the right student</em></h1>');
+  parts.push('<h1 class="hero-title">Where the <span id="hero-word" class="hero-word-anim">right</span> tutor meets<br>the <span id="hero-word-2" class="hero-word-anim">right</span> student</h1>');
   parts.push('<p class="hero-sub">A thoughtfully designed tutoring platform that matches students with tutors by personality and learning style, tracks real academic progress, and keeps everyone motivated.</p>');
   parts.push('<div class="hero-cta">');
   parts.push('<button class="btn btn-primary btn-lg" onclick="openModal(&quot;login&quot;)">Join the program</button>');
@@ -227,31 +227,31 @@ function renderLanding() {
   parts.push('</div>');
   parts.push('</div>');
 
-  // RIGHT — visual card
+  // RIGHT — aesthetic card
   parts.push('<div class="hero-right">');
   parts.push('<div class="hero-card">');
-  parts.push('<div class="hero-card-title">Student progress</div>');
-  parts.push('<div class="hero-card-sub">Live skill map — SAT Math</div>');
-
-  const skills = [['Linear equations','95%','teal'],['Quadratic functions','64%','amber'],['Data analysis','48%','amber'],['Trigonometry','12%','danger']];
-  skills.forEach(function(s) {
-    parts.push('<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-2)">');
-    parts.push('<div style="font-size:12px;flex:1;color:var(--text-1)">' + s[0] + '</div>');
-    parts.push('<div style="width:80px;background:var(--surface-2);border-radius:3px;height:4px"><div style="width:' + s[1] + ';height:4px;border-radius:3px;background:var(--' + s[2] + ')"></div></div>');
-    parts.push('<div style="font-size:11px;color:var(--text-3);min-width:28px;text-align:right">' + s[1] + '</div>');
+  // Card header with avatar
+  parts.push('<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border-2)">');
+  parts.push('<div style="width:44px;height:44px;border-radius:50%;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;font-family:var(--font-display);color:var(--accent)">L</div>');
+  parts.push('<div><div style="font-size:14px;font-weight:600;color:var(--text-1)">Lena M.</div><div style="font-size:12px;color:var(--text-3)">Grade 8 — SAT Math</div></div>');
+  parts.push('<div style="margin-left:auto;text-align:right"><div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em">Goal</div><div style="font-size:14px;font-weight:600;color:var(--teal)">On track</div></div>');
+  parts.push('</div>');
+  // Skills
+  parts.push('<div style="font-size:11px;font-weight:500;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">Skill map</div>');
+  var skillData = [['Linear equations',95,'teal'],['Quadratic functions',64,'amber'],['Data analysis',48,'amber'],['Trigonometry',12,'danger']];
+  skillData.forEach(function(s) {
+    parts.push('<div style="margin-bottom:10px">');
+    parts.push('<div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;color:var(--text-1)">' + s[0] + '</span><span style="font-size:12px;font-weight:500;color:var(--text-3)">' + s[1] + '%</span></div>');
+    parts.push('<div style="height:5px;background:var(--surface-2);border-radius:3px"><div style="height:5px;width:' + s[1] + '%;border-radius:3px;background:var(--' + s[2] + ');transition:width .6s ease"></div></div>');
     parts.push('</div>');
   });
-
-  parts.push('<div class="hero-card-match">');
-  parts.push('<div><div style="font-size:11px;color:var(--text-2);margin-bottom:2px;text-transform:uppercase;letter-spacing:.05em">Match score</div><div style="font-size:12px;color:var(--text-3)">Lena M. — Tutor Ahmed H.</div></div>');
-  parts.push('<div class="hero-card-match-score">94%</div>');
-  parts.push('</div></div></div>');
+  // Match badge
+  parts.push('<div style="display:flex;align-items:center;justify-content:space-between;padding:14px;background:var(--accent-soft);border-radius:var(--r-md);margin-top:6px;border:1px solid rgba(107,76,59,0.12)">');
+  parts.push('<div><div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2);margin-bottom:2px">Match score</div><div style="font-size:12px;color:var(--text-3)">Lena M. — Tutor Ahmed H.</div></div>');
+  parts.push('<div style="font-family:var(--font-display);font-size:34px;font-weight:600;color:var(--accent)">94%</div>');
+  parts.push('</div>');
+  parts.push('</div></div>');
   parts.push('</section>');
-
-  // HOW IT WORKS SECTION
-  parts.push('<div class="how-section">');
-  parts.push('<div class="how-section-label">The process</div>');
-  parts.push('<div class="how-section-title">Four steps to better learning</div>');
   parts.push('<div class="how-grid">');
 
   const steps = [
@@ -1525,9 +1525,56 @@ function render() {
   if (menuBtn && window.innerWidth <= 900) menuBtn.style.display = 'flex';
 }
 
+
+// ---- WORD ANIMATION ----
+var wordPairs = [
+  ['right', 'right'],
+  ['perfect', 'perfect'],
+  ['best', 'best'],
+  ['ideal', 'ideal'],
+  ['right', 'right'],
+];
+var wordIdx = 0;
+
+function startWordAnimation() {
+  setInterval(function() {
+    var w1 = document.getElementById('hero-word');
+    var w2 = document.getElementById('hero-word-2');
+    if (!w1 || !w2) return;
+    wordIdx = (wordIdx + 1) % wordPairs.length;
+    
+    // Fade out
+    w1.style.transition = 'opacity .25s ease, transform .25s ease';
+    w2.style.transition = 'opacity .25s ease, transform .25s ease';
+    w1.style.opacity = '0';
+    w1.style.transform = 'translateY(-8px)';
+    w2.style.opacity = '0';
+    w2.style.transform = 'translateY(-8px)';
+    
+    setTimeout(function() {
+      if (!document.getElementById('hero-word')) return;
+      document.getElementById('hero-word').textContent = wordPairs[wordIdx][0];
+      document.getElementById('hero-word-2').textContent = wordPairs[wordIdx][1];
+      // Fade in
+      w1 = document.getElementById('hero-word');
+      w2 = document.getElementById('hero-word-2');
+      w1.style.transform = 'translateY(8px)';
+      w2.style.transform = 'translateY(8px)';
+      setTimeout(function() {
+        if (!document.getElementById('hero-word')) return;
+        document.getElementById('hero-word').style.opacity = '1';
+        document.getElementById('hero-word').style.transform = 'translateY(0)';
+        document.getElementById('hero-word-2').style.opacity = '1';
+        document.getElementById('hero-word-2').style.transform = 'translateY(0)';
+      }, 20);
+    }, 260);
+  }, 2500);
+}
+
 // ---- INIT ----
 document.addEventListener('DOMContentLoaded', () => {
   render();
+  startWordAnimation();
   // Close sidebar on mobile when clicking main content
   document.addEventListener('click', e => {
     const sidebar = document.getElementById('sidebar');
