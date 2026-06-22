@@ -199,6 +199,7 @@ function renderLanding() {
   const parts = [];
   parts.push('<div class="landing">');
   parts.push('<div class="mesh-bg"><div class="mesh-orb mesh-1"></div><div class="mesh-orb mesh-2"></div><div class="mesh-orb mesh-3"></div></div>');
+  parts.push('<canvas id="grad-canvas" class="gradient-canvas"></canvas>');
 
   // NAV
   parts.push('<nav class="nav">');
@@ -214,7 +215,7 @@ function renderLanding() {
   // LEFT
   parts.push('<div class="hero-left">');
   parts.push('<div class="hero-eyebrow"><div class="hero-eyebrow-dot"></div>Free — Nonprofit — K–12</div>');
-  parts.push('<h1 class="hero-title">Where the <span id="hero-word" class="hero-word-anim">right</span> tutor meets<br>the <span id="hero-word-2" class="hero-word-anim">right</span> student</h1>');
+  parts.push('<h1 class="hero-title">Where the <span id="hero-word" class="hero-word-anim">right</span> tutor<br>meets the <span id="hero-word-2" class="hero-word-anim">right</span> student</h1>');
   parts.push('<p class="hero-sub">A thoughtfully designed tutoring platform that matches students with tutors by personality and learning style, tracks real academic progress, and keeps everyone motivated.</p>');
   parts.push('<div class="hero-cta">');
   parts.push('<button class="btn btn-primary btn-lg" onclick="openModal(&quot;login&quot;)">Join the program</button>');
@@ -227,30 +228,40 @@ function renderLanding() {
   parts.push('</div>');
   parts.push('</div>');
 
-  // RIGHT — aesthetic card
+  // RIGHT — creative stats card
   parts.push('<div class="hero-right">');
   parts.push('<div class="hero-card">');
-  // Card header with avatar
-  parts.push('<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border-2)">');
-  parts.push('<div style="width:44px;height:44px;border-radius:50%;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;font-family:var(--font-display);color:var(--accent)">L</div>');
-  parts.push('<div><div style="font-size:14px;font-weight:600;color:var(--text-1)">Lena M.</div><div style="font-size:12px;color:var(--text-3)">Grade 8 — SAT Math</div></div>');
-  parts.push('<div style="margin-left:auto;text-align:right"><div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em">Goal</div><div style="font-size:14px;font-weight:600;color:var(--teal)">On track</div></div>');
+  parts.push('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">');
+  parts.push('<div style="font-family:var(--font-display);font-size:17px;font-weight:600;color:var(--text-1)">Program overview</div>');
+  parts.push('<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--teal);font-weight:500;background:var(--teal-soft);padding:3px 10px;border-radius:20px"><span style="width:6px;height:6px;border-radius:50%;background:var(--teal);display:inline-block"></span>Live</span>');
   parts.push('</div>');
-  // Skills
-  parts.push('<div style="font-size:11px;font-weight:500;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">Skill map</div>');
-  var skillData = [['Linear equations',95,'teal'],['Quadratic functions',64,'amber'],['Data analysis',48,'amber'],['Trigonometry',12,'danger']];
-  skillData.forEach(function(s) {
-    parts.push('<div style="margin-bottom:10px">');
-    parts.push('<div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;color:var(--text-1)">' + s[0] + '</span><span style="font-size:12px;font-weight:500;color:var(--text-3)">' + s[1] + '%</span></div>');
-    parts.push('<div style="height:5px;background:var(--surface-2);border-radius:3px"><div style="height:5px;width:' + s[1] + '%;border-radius:3px;background:var(--' + s[2] + ');transition:width .6s ease"></div></div>');
+  parts.push('<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px">');
+  var stats = [['94%','Avg match score','v'],['100%','Attendance rate','g'],['12','Skills per student','a']];
+  stats.forEach(function(st) {
+    var colors = {v:'var(--accent)',g:'var(--teal)',a:'var(--amber)'};
+    var bgs = {v:'var(--accent-soft)',g:'var(--teal-soft)',a:'var(--amber-soft)'};
+    parts.push('<div style="padding:14px 12px;background:' + bgs[st[2]] + ';border-radius:var(--r-md);text-align:center;border:1px solid rgba(0,0,0,0.05)">');
+    parts.push('<div style="font-family:var(--font-display);font-size:26px;font-weight:600;color:' + colors[st[2]] + ';margin-bottom:4px">' + st[0] + '</div>');
+    parts.push('<div style="font-size:11px;color:var(--text-3);line-height:1.3">' + st[1] + '</div>');
     parts.push('</div>');
   });
-  // Match badge
-  parts.push('<div style="display:flex;align-items:center;justify-content:space-between;padding:14px;background:var(--accent-soft);border-radius:var(--r-md);margin-top:6px;border:1px solid rgba(107,76,59,0.12)">');
-  parts.push('<div><div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2);margin-bottom:2px">Match score</div><div style="font-size:12px;color:var(--text-3)">Lena M. — Tutor Ahmed H.</div></div>');
-  parts.push('<div style="font-family:var(--font-display);font-size:34px;font-weight:600;color:var(--accent)">94%</div>');
+  parts.push('</div>');
+  parts.push('<div style="font-size:11px;font-weight:500;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">Recent sessions</div>');
+  var sessions = [['Lena M.','SAT Math','Session 12','On track'],['Omar B.','Literature','Session 8','On track'],['Yara S.','Math basics','Session 5','Active']];
+  sessions.forEach(function(s) {
+    parts.push('<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-2)">');
+    parts.push('<div style="width:30px;height:30px;border-radius:50%;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--accent);flex-shrink:0">' + s[0][0] + '</div>');
+    parts.push('<div style="flex:1"><div style="font-size:13px;font-weight:500;color:var(--text-1)">' + s[0] + '</div><div style="font-size:11px;color:var(--text-3)">' + s[1] + ' — ' + s[2] + '</div></div>');
+    parts.push('<span style="font-size:10px;font-weight:500;color:var(--teal);background:var(--teal-soft);padding:2px 8px;border-radius:10px">' + s[3] + '</span>');
+    parts.push('</div>');
+  });
+  // Bottom match badge
+  parts.push('<div style="display:flex;align-items:center;justify-content:space-between;padding:14px;background:var(--accent-soft);border-radius:var(--r-md);margin-top:10px;border:1px solid rgba(107,76,59,0.1)">');
+  parts.push('<div><div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2);margin-bottom:2px">Smart matching</div><div style="font-size:12px;color:var(--text-3)">AI-powered compatibility scores</div></div>');
+  parts.push('<div style="font-family:var(--font-display);font-size:32px;font-weight:600;color:var(--accent)">94%</div>');
   parts.push('</div>');
   parts.push('</div></div>');
+  parts.push('</section>');
   parts.push('</section>');
   parts.push('<div class="how-grid">');
 
@@ -1526,6 +1537,95 @@ function render() {
 }
 
 
+
+// ---- STRIPE GRADIENT SHADER ----
+function initGradientShader() {
+  var canvas = document.getElementById('grad-canvas');
+  if (!canvas) return;
+
+  var gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+  if (!gl) return;
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  var vsrc = [
+    'attribute vec2 a_pos;',
+    'void main(){gl_Position=vec4(a_pos,0.,1.);}',
+  ].join('');
+
+  // Warm stripe shader matching app palette
+  // color1: cream #F2EDE6, color2: warm brown #6B4C3B, color3: muted teal #4A8C7A
+  var fsrc = [
+    'precision mediump float;',
+    'uniform float u_time;',
+    'uniform vec2 u_res;',
+    'void main(){',
+    '  vec2 uv = gl_FragCoord.xy/u_res;',
+    '  float t = u_time * 0.18;',
+    // Stripe pattern
+    '  float stripe = sin((uv.x * 3.0 - uv.y * 1.5 + t) * 4.0) * 0.5 + 0.5;',
+    '  float stripe2 = sin((uv.x * 2.0 + uv.y * 2.0 - t * 0.7) * 3.0) * 0.5 + 0.5;',
+    '  float noise = fract(sin(uv.x*127.1+uv.y*311.7)*43758.5) * 0.06;',
+    '  float blend = clamp(stripe * stripe2 + noise, 0., 1.);',
+    // Warm cream base
+    '  vec3 c1 = vec3(0.949, 0.929, 0.902);',
+    // Warm brown
+    '  vec3 c2 = vec3(0.878, 0.855, 0.820);',
+    // Soft teal hint
+    '  vec3 c3 = vec3(0.906, 0.925, 0.910);',
+    '  vec3 col = mix(c1, mix(c2, c3, stripe2), blend * 0.55);',
+    '  gl_FragColor = vec4(col, 1.0);',
+    '}',
+  ].join('\n');
+
+  function mkShader(type, src) {
+    var sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    return sh;
+  }
+
+  var prog = gl.createProgram();
+  gl.attachShader(prog, mkShader(gl.VERTEX_SHADER, vsrc));
+  gl.attachShader(prog, mkShader(gl.FRAGMENT_SHADER, fsrc));
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+
+  var buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+
+  var loc = gl.getAttribLocation(prog, 'a_pos');
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+  var uTime = gl.getUniformLocation(prog, 'u_time');
+  var uRes  = gl.getUniformLocation(prog, 'u_res');
+
+  var start = performance.now();
+  var animId = null;
+
+  function draw() {
+    // Only draw if canvas is in DOM (landing page)
+    if (!document.getElementById('grad-canvas')) {
+      cancelAnimationFrame(animId);
+      return;
+    }
+    var t = (performance.now() - start) / 1000;
+    gl.uniform1f(uTime, t);
+    gl.uniform2f(uRes, canvas.width, canvas.height);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    animId = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
 // ---- WORD ANIMATION ----
 var wordPairs = [
   ['right', 'right'],
@@ -1575,6 +1675,7 @@ function startWordAnimation() {
 document.addEventListener('DOMContentLoaded', () => {
   render();
   startWordAnimation();
+  initGradientShader();
   // Close sidebar on mobile when clicking main content
   document.addEventListener('click', e => {
     const sidebar = document.getElementById('sidebar');
