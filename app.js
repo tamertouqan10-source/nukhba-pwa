@@ -11,6 +11,12 @@ const State = {
   activeTab: {},
 };
 
+
+function closeModalById(id) {
+  var el = document.getElementById(id);
+  if (el) el.remove();
+  if (id === 'login-modal') State.modal = null;
+}
 // ---- ROUTER ----
 function navigate(page) {
   State.page = page;
@@ -33,11 +39,11 @@ function openHowItWorks() {
   document.getElementById('login-modal') && document.getElementById('login-modal').remove();
   document.getElementById('how-modal') && document.getElementById('how-modal').remove();
   const parts = [];
-  parts.push('<div class="modal-overlay" id="how-modal" onclick="if(event.target.id==='how-modal')document.getElementById('how-modal').remove()">');
+  parts.push('<div class="modal-overlay" id="how-modal" onclick="closeModalById(\'how-modal\')" style="z-index:200">');
   parts.push('<div class="modal" style="max-width:500px">');
   parts.push('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">');
   parts.push('<div style="font-family:var(--font-display);font-size:22px;font-weight:600;color:var(--text-1)">How Nukhba works</div>');
-  parts.push('<button onclick="document.getElementById('how-modal').remove()" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px"><i class="ti ti-x"></i></button>');
+  parts.push('<button onclick="closeModalById(\'how-modal\')" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px"><i class="ti ti-x"></i></button>');
   parts.push('</div>');
 
   const steps = [
@@ -56,7 +62,7 @@ function openHowItWorks() {
     parts.push('<div style="font-size:12px;color:var(--text-2);line-height:1.6">' + s[5] + '</div></div></div>');
   });
 
-  parts.push('<button onclick="document.getElementById('how-modal').remove();openModal('login')" style="width:100%;margin-top:18px;padding:12px;background:var(--accent);color:#FAF8F5;border:none;border-radius:var(--r-md);font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">Join the program</button>');
+  parts.push('<button onclick="closeModalById(\'how-modal\');openModal(\'login\')" style="width:100%;margin-top:18px;padding:12px;background:var(--accent);color:#FAF8F5;border:none;border-radius:var(--r-md);font-size:14px;font-weight:500;cursor:pointer;">Join the program</button>');
   parts.push('</div></div>');
   document.body.insertAdjacentHTML('beforeend', parts.join(''));
 }
@@ -198,8 +204,8 @@ function renderLanding() {
   parts.push('<nav class="nav">');
   parts.push('<div class="nav-logo"><div class="nav-logo-mark">N</div><div><div class="nav-logo-text">Nukhba</div><div class="nav-logo-sub">Tutoring Platform</div></div></div>');
   parts.push('<div class="nav-actions">');
-  parts.push('<button class="btn btn-ghost" onclick="openModal('login')">Sign in</button>');
-  parts.push('<button class="btn btn-primary" onclick="openModal('login')">Get started</button>');
+  parts.push('<button class="btn btn-ghost" onclick="openModal(&quot;login&quot;)">Sign in</button>');
+  parts.push('<button class="btn btn-primary" onclick="openModal(&quot;login&quot;)">Get started</button>');
   parts.push('</div></nav>');
 
   // HERO — SPLIT LAYOUT
@@ -211,7 +217,7 @@ function renderLanding() {
   parts.push('<h1 class="hero-title">Where the right tutor meets<br><em>the right student</em></h1>');
   parts.push('<p class="hero-sub">A thoughtfully designed tutoring platform that matches students with tutors by personality and learning style, tracks real academic progress, and keeps everyone motivated.</p>');
   parts.push('<div class="hero-cta">');
-  parts.push('<button class="btn btn-primary btn-lg" onclick="openModal('login')">Join the program</button>');
+  parts.push('<button class="btn btn-primary btn-lg" onclick="openModal(&quot;login&quot;)">Join the program</button>');
   parts.push('<button class="btn btn-secondary btn-lg" onclick="openHowItWorks()">See how it works</button>');
   parts.push('</div>');
   parts.push('<div class="hero-stats">');
@@ -280,9 +286,9 @@ function renderLanding() {
   parts.push('<footer class="site-footer">');
   parts.push('<div class="footer-copy">© 2026 Nukhba Tutoring Platform. All rights reserved.</div>');
   parts.push('<div class="footer-links">');
-  parts.push('<span class="footer-link" onclick="navigate('terms')">Terms of Use</span>');
-  parts.push('<span class="footer-link" onclick="navigate('privacy')">Privacy Policy</span>');
-  parts.push('<span class="footer-link" onclick="openModal('login')">Sign in</span>');
+  parts.push('<span class="footer-link" onclick="navigate(&quot;terms&quot;)">Terms of Use</span>');
+  parts.push('<span class="footer-link" onclick="navigate(&quot;privacy&quot;)">Privacy Policy</span>');
+  parts.push('<span class="footer-link" onclick="openModal(&quot;login&quot;)">Sign in</span>');
   parts.push('</div></footer>');
   parts.push('</div>');
 
@@ -293,7 +299,7 @@ function renderLanding() {
 // ---- LOGIN MODAL ----
 function renderLoginModal() {
   const parts = [];
-  parts.push('<div class="modal-overlay" id="login-modal" onclick="if(event.target.id==='login-modal')document.getElementById('login-modal').remove()">');
+  parts.push('<div class="modal-overlay" id="login-modal" onclick="closeModalById(\'login-modal\')" style="">');
   parts.push('<div class="modal">');
   parts.push('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">');
   parts.push('<div style="display:flex;align-items:center;gap:10px"><div class="nav-logo-mark">N</div><div style="font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--text-1)">Nukhba</div></div>');
@@ -306,12 +312,12 @@ function renderLoginModal() {
   parts.push('<button class="btn btn-primary" style="width:100%;justify-content:center"><i class="ti ti-login"></i> Sign in</button>');
   parts.push('<div class="modal-divider">or try a demo portal</div>');
   parts.push('<div class="role-grid">');
-  parts.push('<button class="role-btn" onclick="setUser('student','Lena M.')"><i class="ti ti-school"></i> Student</button>');
-  parts.push('<button class="role-btn" onclick="setUser('tutor','Ahmed H.')"><i class="ti ti-user-check"></i> Tutor</button>');
-  parts.push('<button class="role-btn" onclick="setUser('parent','Mrs. M.')"><i class="ti ti-heart-handshake"></i> Parent</button>');
-  parts.push('<button class="role-btn" onclick="setUser('admin','Admin')"><i class="ti ti-shield-check"></i> Admin</button>');
+  parts.push('<button class="role-btn" onclick="setUser(&quot;student&quot;,&quot;Lena M.&quot;)"><i class="ti ti-school"></i> Student</button>');
+  parts.push('<button class="role-btn" onclick="setUser(&quot;tutor&quot;,&quot;Ahmed H.&quot;)"><i class="ti ti-user-check"></i> Tutor</button>');
+  parts.push('<button class="role-btn" onclick="setUser(&quot;parent&quot;,&quot;Mrs. M.&quot;)"><i class="ti ti-heart-handshake"></i> Parent</button>');
+  parts.push('<button class="role-btn" onclick="setUser(&quot;admin&quot;,&quot;Admin&quot;)"><i class="ti ti-shield-check"></i> Admin</button>');
   parts.push('</div>');
-  parts.push('<div class="modal-footer">Don't have an account? <a href="#" onclick="toast('Contact your program admin to join','info')">Request access</a></div>');
+  parts.push('<div class="modal-footer">Don&#39;t have an account? <a href="#" onclick="toast(\"Contact your program admin to join\",\"info\")">Request access</a></div>');
   parts.push('</div></div>');
   return parts.join('');
 }
@@ -937,7 +943,7 @@ function generateNote() {
     </div>
     <div style="font-size:13px;line-height:1.8;color:var(--text-2);background:var(--surface-2);border-radius:var(--radius-md);padding:16px;margin-bottom:14px">
       <strong style="color:var(--text-1)">Session — Jun 10, 2026 · Lena M. · 60 min</strong><br><br>
-      In today's session, we focused on quadratic functions — specifically vertex form and completing the square. Lena showed solid understanding of standard form conversion but struggled with negative leading coefficients, which will need reinforcement next session.<br><br>
+      In today\'s session, we focused on quadratic functions — specifically vertex form and completing the square. Lena showed solid understanding of standard form conversion but struggled with negative leading coefficients, which will need reinforcement next session.<br><br>
       We reviewed two past SAT problems related to parabolas. Engagement was good throughout. Homework assigned: 10 quadratic practice problems focusing on the completing-the-square method.<br><br>
       <strong style="color:var(--amber)">Flag for next session:</strong> Revisit negative coefficients in quadratic expressions before moving to factoring.
     </div>
@@ -1035,7 +1041,7 @@ function renderParentDashboard() {
   <div class="page-header">
     <div>
       <div class="page-title">Hello, Mrs. M. 👋</div>
-      <div class="page-sub">Here's how Lena is doing this week</div>
+      <div class="page-sub">Here\'s how Lena is doing this week</div>
     </div>
   </div>
 
@@ -1454,14 +1460,14 @@ function renderAdminHours() {
 
 
 function renderTerms() {
-  const nav = '<nav class="nav"><div class="nav-logo"><div class="nav-logo-mark">N</div><div><div class="nav-logo-text">Nukhba</div></div></div><button class="btn btn-ghost" onclick="navigate('landing')">Back to home</button></nav>';
-  const footer = '<footer class="site-footer"><div class="footer-copy">© 2026 Nukhba Tutoring Platform.</div><div class="footer-links"><span class="footer-link" onclick="navigate('terms')">Terms of Use</span><span class="footer-link" onclick="navigate('privacy')">Privacy Policy</span></div></footer>';
+  const nav = '<nav class="nav"><div class="nav-logo"><div class="nav-logo-mark">N</div><div><div class="nav-logo-text">Nukhba</div></div></div><button class="btn btn-ghost" onclick="navigate(&quot;landing&quot;)">Back to home</button></nav>';
+  const footer = '<footer class="site-footer"><div class="footer-copy">© 2026 Nukhba Tutoring Platform.</div><div class="footer-links"><span class="footer-link" onclick="navigate(&quot;terms&quot;)">Terms of Use</span><span class="footer-link" onclick="navigate(&quot;privacy&quot;)">Privacy Policy</span></div></footer>';
   return '<div style="min-height:100vh;background:var(--bg);position:relative"><div class="mesh-bg"><div class="mesh-orb mesh-1"></div><div class="mesh-orb mesh-2"></div></div>' + nav + '<div class="legal-page"><h1>Terms of Use</h1><div class="legal-date">Last updated: June 2026</div><p>Please read these Terms of Use carefully before using the Nukhba tutoring platform. By accessing or using our platform, you agree to be bound by these terms.</p><div class="legal-divider"></div><h2>1. About the Platform</h2><p>Nukhba is a free, nonprofit tutoring platform that connects K–12 students with qualified tutors for educational support. The platform is operated on a volunteer and community basis with no commercial intent.</p><h2>2. Eligibility</h2><p>To use this platform you must be a K–12 student, the parent or guardian of a K–12 student, or a qualified tutor — and must be approved by a program administrator before gaining full access.</p><h2>3. User Accounts</h2><p>You are responsible for maintaining the confidentiality of your account credentials. You agree to provide accurate and complete information during registration. Accounts may be suspended or terminated for misuse or inappropriate behavior.</p><h2>4. Acceptable Use</h2><p>You agree not to use the platform to harass or harm any other user, share inappropriate or offensive content, misrepresent your identity or qualifications, use the platform for any commercial or for-profit purpose, or attempt to gain unauthorized access to the platform or its data.</p><h2>5. Sessions and Communication</h2><p>All sessions take place through designated video platforms. Communications between tutors, students, and parents within the platform are logged and may be reviewed by administrators for safety and quality purposes.</p><h2>6. Privacy and Minors</h2><p>We take the privacy of minors very seriously. Student data is collected only as necessary to deliver tutoring services and is never sold or shared with third parties. Please refer to our Privacy Policy for full details.</p><h2>7. Disclaimers</h2><p>Nukhba provides this platform on an as-is basis. While we strive to match students with suitable tutors, we make no guarantees regarding academic outcomes. The platform is a supplemental educational resource and does not replace formal schooling.</p><h2>8. Limitation of Liability</h2><p>To the fullest extent permitted by law, Nukhba and its administrators shall not be liable for any indirect, incidental, or consequential damages arising from use of this platform.</p><h2>9. Changes to These Terms</h2><p>We may update these Terms of Use periodically. Continued use of the platform after changes are posted constitutes your acceptance of the revised terms.</p><h2>10. Contact</h2><p>For questions about these terms, please contact your program administrator through the platform messaging system.</p></div>' + footer + '</div>';
 }
 
 function renderPrivacy() {
-  const nav = '<nav class="nav"><div class="nav-logo"><div class="nav-logo-mark">N</div><div><div class="nav-logo-text">Nukhba</div></div></div><button class="btn btn-ghost" onclick="navigate('landing')">Back to home</button></nav>';
-  const footer = '<footer class="site-footer"><div class="footer-copy">© 2026 Nukhba Tutoring Platform.</div><div class="footer-links"><span class="footer-link" onclick="navigate('terms')">Terms of Use</span><span class="footer-link" onclick="navigate('privacy')">Privacy Policy</span></div></footer>';
+  const nav = '<nav class="nav"><div class="nav-logo"><div class="nav-logo-mark">N</div><div><div class="nav-logo-text">Nukhba</div></div></div><button class="btn btn-ghost" onclick="navigate(&quot;landing&quot;)">Back to home</button></nav>';
+  const footer = '<footer class="site-footer"><div class="footer-copy">© 2026 Nukhba Tutoring Platform.</div><div class="footer-links"><span class="footer-link" onclick="navigate(&quot;terms&quot;)">Terms of Use</span><span class="footer-link" onclick="navigate(&quot;privacy&quot;)">Privacy Policy</span></div></footer>';
   return '<div style="min-height:100vh;background:var(--bg);position:relative"><div class="mesh-bg"><div class="mesh-orb mesh-1"></div><div class="mesh-orb mesh-2"></div></div>' + nav + '<div class="legal-page"><h1>Privacy Policy</h1><div class="legal-date">Last updated: June 2026</div><p>Your privacy matters to us. This Privacy Policy explains what information we collect, how we use it, and how we protect it — particularly given that our platform serves minors.</p><div class="legal-divider"></div><h2>1. Information We Collect</h2><p>We collect account information (name, email, role), student profile data (grade, subject, learning style, goals), tutor profile data (teaching style, availability, session history), session data (dates, duration, notes, skill progress), communications through the platform inbox, and points and attendance records.</p><h2>2. How We Use Your Information</h2><p>We use your information exclusively to match students with tutors, track academic progress, send session reminders and progress updates to parents, administer the points and rewards system, maintain tutor volunteer hour records, and ensure the safety of all platform users.</p><h2>3. Protection of Minors</h2><p>Parental or guardian consent is required for students to join the program. Student data is never shared publicly. Administrators monitor communications to ensure a safe environment. Students only interact with approved tutors who have been vetted by program administrators.</p><h2>4. Data Sharing</h2><p>We do not sell, rent, or trade your personal information. We do not share your data with advertisers. Data may be shared only with program administrators for oversight, with parents regarding their child progress, with third-party service providers strictly for operating the platform, or when required by law.</p><h2>5. Data Storage and Security</h2><p>Your data is stored securely using Supabase with enterprise-grade encryption. We use row-level security so users can only access data they are authorized to view.</p><h2>6. Your Rights</h2><p>You have the right to access the personal data we hold about you, request correction of inaccurate data, and request deletion of your account and associated data. To exercise these rights, contact your program administrator.</p><h2>7. Cookies</h2><p>We use minimal, strictly necessary browser storage to maintain your session. We do not use advertising cookies or third-party tracking technologies.</p><h2>8. Data Retention</h2><p>We retain your data for as long as your account is active. Upon account deletion, personal data is removed within 30 days.</p><h2>9. Contact</h2><p>For any privacy-related questions, please contact your program administrator through the platform messaging system.</p></div>' + footer + '</div>';
 }
 
@@ -1488,7 +1494,7 @@ function render() {
     'tutor-hours':        renderTutorHours,
     'tutor-messages':     () => renderShell(tutorNav(), `<div class="page-header"><div class="page-title">Messages</div></div><div class="card"><div class="empty-state"><i class="ti ti-message-2"></i><p>Your student conversations appear here. All messages are logged and visible to admins.</p></div></div>`, 'Messages'),
     'parent-dashboard':   renderParentDashboard,
-    'parent-progress':    () => renderShell(parentNav(), `<div class="page-header"><div class="page-title">Lena's progress</div></div><div class="card">${DATA.skills.map(s=>`<div class="skill-row"><div class="skill-name">${s.name}</div><div class="skill-bar-wrap">${ProgressBar(s.pct,s.status==='mastered'?'teal':s.status==='progress'?'amber':'danger')}</div><div class="skill-pct">${s.pct}%</div>${s.status==='mastered'?Badge('Mastered','g'):s.status==='progress'?Badge('In progress','a'):Badge('Not started','r')}</div>`).join('')}</div>`, 'Progress'),
+    'parent-progress':    () => renderShell(parentNav(), `<div class="page-header"><div class="page-title">Lena\'s progress</div></div><div class="card">${DATA.skills.map(s=>`<div class="skill-row"><div class="skill-name">${s.name}</div><div class="skill-bar-wrap">${ProgressBar(s.pct,s.status==='mastered'?'teal':s.status==='progress'?'amber':'danger')}</div><div class="skill-pct">${s.pct}%</div>${s.status==='mastered'?Badge('Mastered','g'):s.status==='progress'?Badge('In progress','a'):Badge('Not started','r')}</div>`).join('')}</div>`, 'Progress'),
     'parent-sessions':    () => renderShell(parentNav(), `<div class="page-header"><div class="page-title">Sessions</div></div><div class="card">${DATA.sessions.map(s=>`<div class="session-card"><div class="session-time"><div class="session-time-val">${s.time.replace(' PM','')}</div><div class="session-time-day">${s.day}</div></div><div class="session-body"><div class="session-student">${s.subject}</div><div class="session-meta">${s.duration} · Online ${StatusBadge(s.status)}</div></div></div>`).join('')}</div>`, 'Sessions'),
     'parent-messages':    () => renderShell(parentNav(), `<div class="page-header"><div class="page-title">Messages</div></div><div class="card"><div class="empty-state"><i class="ti ti-message-2"></i><p>Message your child's tutor directly here.</p></div></div>`, 'Messages'),
     'admin-dashboard':    renderAdminDashboard,
