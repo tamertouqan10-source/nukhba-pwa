@@ -228,40 +228,54 @@ function renderLanding() {
   parts.push('</div>');
   parts.push('</div>');
 
-  // RIGHT — tutor match card
+  // RIGHT — week in review widget
   parts.push('<div class="hero-right">');
-  parts.push('<div class="hero-card" style="padding:0;overflow:hidden">');
-  parts.push('<div style="padding:22px 22px 18px;background:var(--surface)">');
-  parts.push('<div style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px">Your matched tutor</div>');
-  parts.push('<div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">');
-  parts.push('<div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--accent-soft),var(--teal-soft));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:20px;font-weight:600;color:var(--accent);flex-shrink:0;border:2px solid var(--border)">A</div>');
-  parts.push('<div style="flex:1"><div style="font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--text-1)">Ahmed H.</div><div style="font-size:12px;color:var(--text-3);margin-top:2px">SAT Math specialist · 4.9 rating</div></div>');
-  parts.push('<div style="text-align:center;background:var(--teal-soft);border-radius:var(--r-md);padding:8px 12px"><div style="font-family:var(--font-display);font-size:20px;font-weight:600;color:var(--teal)">94%</div><div style="font-size:10px;color:var(--teal);text-transform:uppercase;letter-spacing:.04em">match</div></div>');
+  parts.push('<div class="hero-card" style="padding:0;overflow:hidden;min-width:340px">');
+
+  // Header bar
+  parts.push('<div style="padding:18px 20px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(220,214,206,0.6)">');
+  parts.push('<div style="font-family:var(--font-display);font-size:16px;font-weight:600;color:var(--text-1)">This week</div>');
+  parts.push('<div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em">June 2026</div>');
   parts.push('</div>');
-  parts.push('<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:0">');
-  var tags = ['Patient','Visual learner','SAT expert','Structured'];
-  tags.forEach(function(tag) {
-    parts.push('<span style="font-size:11px;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);padding:4px 10px;border-radius:20px">' + tag + '</span>');
+
+  // Week day strip
+  parts.push('<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;padding:14px 16px;background:var(--surface-2)">');
+  var days = [['M',true,50],['T',false,0],['W',true,80],['T',false,0],['F',true,60],['S',false,0],['S',false,0]];
+  days.forEach(function(d) {
+    var bg = d[1] ? 'var(--accent)' : 'rgba(0,0,0,0.04)';
+    var fg = d[1] ? '#FAF8F5' : 'var(--text-3)';
+    parts.push('<div style="display:flex;flex-direction:column;align-items:center;gap:4px">');
+    parts.push('<div style="font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em">' + d[0] + '</div>');
+    parts.push('<div style="width:32px;height:32px;border-radius:50%;background:' + bg + ';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:' + fg + '">' + (d[1] ? '<i class="ti ti-check" style="font-size:13px"></i>' : '') + '</div>');
+    if(d[1]) parts.push('<div style="font-size:9px;color:var(--accent);font-weight:500">+' + d[2] + '</div>');
+    else parts.push('<div style="font-size:9px;color:transparent">0</div>');
+    parts.push('</div>');
   });
   parts.push('</div>');
+
+  // Points this week
+  parts.push('<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid rgba(220,214,206,0.5)">');
+  parts.push('<div style="padding:14px 18px;border-right:1px solid rgba(220,214,206,0.5)">');
+  parts.push('<div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Points earned</div>');
+  parts.push('<div style="font-family:var(--font-display);font-size:28px;font-weight:600;color:var(--accent)">190</div>');
+  parts.push('<div style="font-size:11px;color:var(--teal);margin-top:2px">+40 from streak</div>');
   parts.push('</div>');
-  parts.push('<div style="display:flex;align-items:center;gap:0;position:relative">');
-  parts.push('<div style="flex:1;height:1px;background:var(--border)"></div>');
-  parts.push('<div style="padding:6px 14px;background:var(--accent-soft);border:1px solid rgba(107,76,59,0.15);border-radius:20px;font-size:11px;font-weight:500;color:var(--accent);white-space:nowrap;position:relative;z-index:1">AI matched for you</div>');
-  parts.push('<div style="flex:1;height:1px;background:var(--border)"></div>');
-  parts.push('</div>');
-  parts.push('<div style="padding:18px 22px 22px;background:var(--bg-2)">');
-  parts.push('<div style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px">Student profile</div>');
-  parts.push('<div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">');
-  parts.push('<div style="width:52px;height:52px;border-radius:50%;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:20px;font-weight:600;color:var(--accent);flex-shrink:0;border:2px solid var(--border)">L</div>');
-  parts.push('<div style="flex:1"><div style="font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--text-1)">Lena M.</div><div style="font-size:12px;color:var(--text-3);margin-top:2px">Grade 8 · SAT Math · Visual learner</div></div>');
-  parts.push('</div>');
-  parts.push('<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 14px">');
-  parts.push('<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:12px;color:var(--text-2)">SAT 680+ goal</span><span style="font-size:12px;font-weight:600;color:var(--teal)">67% there</span></div>');
-  parts.push('<div style="height:5px;background:var(--surface-2);border-radius:3px"><div style="height:5px;width:67%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--teal))"></div></div>');
-  parts.push('<div style="font-size:11px;color:var(--text-3);margin-top:6px">Est. 6 more sessions to reach goal</div>');
+  parts.push('<div style="padding:14px 18px">');
+  parts.push('<div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Streak</div>');
+  parts.push('<div style="font-family:var(--font-display);font-size:28px;font-weight:600;color:var(--amber)">7</div>');
+  parts.push('<div style="font-size:11px;color:var(--text-3);margin-top:2px">weeks running</div>');
   parts.push('</div>');
   parts.push('</div>');
+
+  // Tutor message preview
+  parts.push('<div style="padding:14px 18px;display:flex;align-items:flex-start;gap:10px">');
+  parts.push('<div style="width:34px;height:34px;border-radius:50%;background:var(--teal-soft);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:14px;font-weight:600;color:var(--teal);flex-shrink:0">A</div>');
+  parts.push('<div style="flex:1;background:var(--surface-2);border-radius:0 var(--r-md) var(--r-md) var(--r-md);padding:10px 12px">');
+  parts.push('<div style="font-size:11px;font-weight:600;color:var(--text-1);margin-bottom:3px">Ahmed H.</div>');
+  parts.push('<div style="font-size:12px;color:var(--text-2);line-height:1.5">Great work this week. Review quadratic functions before Thursday — you&#39;re closer than you think.</div>');
+  parts.push('</div>');
+  parts.push('</div>');
+
   parts.push('</div></div>');
   parts.push('</section>');
   parts.push('</section>');
