@@ -193,6 +193,7 @@ ul { list-style: none; }
   display: flex;
   flex-direction: column;
   position: relative;
+  z-index: 1;
 }
 
 .nav {
@@ -1223,8 +1224,11 @@ ul { list-style: none; }
 .feature-strip-item { background: transparent !important; }
 
 /* Hero and nav float above mesh transparently */
-.nav  { position: relative; z-index: 10; background: transparent; }
-.hero { position: relative; z-index: 5; }
+.nav  { position: relative; z-index: 10; background: transparent; pointer-events: all; }
+.hero { position: relative; z-index: 5; pointer-events: all; }
+.hero-cta { position: relative; z-index: 10; pointer-events: all; }
+.hero-left { position: relative; z-index: 10; pointer-events: all; }
+.btn { position: relative; z-index: 10; pointer-events: all; }
 
 /* Hero card gets frosted glass against the moving mesh */
 .hero-card {
