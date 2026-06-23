@@ -67,8 +67,8 @@ function openHowItWorks() {
   document.body.insertAdjacentHTML('beforeend', parts.join(''));
 }
 
-function setUser(role, name) {
-  State.user = { role, name };
+function setUser(role, name, id) {
+  State.user = { role, name, id: id || null };
   State.modal = null;
   State.page = role + '-dashboard';
   render();
@@ -320,6 +320,7 @@ function renderLanding() {
   parts.push('<div class="footer-links">');
   parts.push('<span class="footer-link" onclick="navigate(&quot;terms&quot;)">Terms of Use</span>');
   parts.push('<span class="footer-link" onclick="navigate(&quot;privacy&quot;)">Privacy Policy</span>');
+  parts.push('<a class="footer-link" href="mailto:support@nukhba.org">Support</a>');
   parts.push('<span class="footer-link" onclick="openModal(&quot;login&quot;)">Sign in</span>');
   parts.push('</div></footer>');
   parts.push('</div>');
@@ -331,17 +332,43 @@ function renderLanding() {
 // ---- LOGIN MODAL ----
 function renderLoginModal() {
   const parts = [];
-  parts.push('<div class="modal-overlay" id="login-modal" onclick="closeModalById(\'login-modal\')" style="">');
-  parts.push('<div class="modal">');
-  parts.push('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">');
+  parts.push('<div class="modal-overlay" id="login-modal" onclick="if(event.target===this)closeModalById(\'login-modal\')">');
+  parts.push('<div class="modal" onclick="event.stopPropagation()">');
+
+  // Header
+  parts.push('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">');
   parts.push('<div style="display:flex;align-items:center;gap:10px"><div class="nav-logo-mark">N</div><div style="font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--text-1)">Nukhba</div></div>');
   parts.push('<button id="close-login-btn" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px"><i class="ti ti-x"></i></button>');
   parts.push('</div>');
-  parts.push('<div class="modal-title">Welcome back</div>');
-  parts.push('<div class="modal-sub">Sign in to your portal — or try a demo below</div>');
-  parts.push('<div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" placeholder="you@example.com" /></div>');
-  parts.push('<div class="form-group"><label class="form-label">Password</label><input class="form-input" type="password" placeholder="••••••••" /></div>');
-  parts.push('<button class="btn btn-primary" style="width:100%;justify-content:center"><i class="ti ti-login"></i> Sign in</button>');
+
+  // Tabs — Sign in / Create account
+  parts.push('<div style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--r-md);padding:3px;margin-bottom:22px;background:var(--surface-2)">');
+  parts.push('<button id="tab-signin" onclick="authSwitchTab(\'signin\')" style="flex:1;padding:8px;border-radius:8px;font-size:13px;font-weight:500;background:var(--surface);color:var(--text-1);border:none;cursor:pointer;transition:all .15s">Sign in</button>');
+  parts.push('<button id="tab-signup" onclick="authSwitchTab(\'signup\')" style="flex:1;padding:8px;border-radius:8px;font-size:13px;font-weight:500;background:transparent;color:var(--text-3);border:none;cursor:pointer;transition:all .15s">Create account</button>');
+  parts.push('</div>');
+
+  // Error banner (hidden by default)
+  parts.push('<div id="auth-error" style="display:none;background:var(--danger-soft);color:var(--danger);border-radius:var(--r-md);padding:10px 14px;font-size:13px;margin-bottom:14px;"></div>');
+
+  // Sign-in form
+  parts.push('<div id="form-signin">');
+  parts.push('<div class="form-group"><label class="form-label">Email</label><input id="signin-email" class="form-input" type="email" placeholder="you@example.com" maxlength="254" autocomplete="email" /></div>');
+  parts.push('<div class="form-group"><label class="form-label">Password</label><input id="signin-password" class="form-input" type="password" placeholder="••••••••" maxlength="128" autocomplete="current-password" /></div>');
+  parts.push('<button class="btn btn-primary" id="signin-btn" style="width:100%;justify-content:center;margin-bottom:4px" onclick="authDoSignIn()"><i class="ti ti-login"></i> Sign in</button>');
+  parts.push('<div style="font-size:12px;color:var(--text-3);text-align:center;margin-bottom:4px">Max 5 sign-in attempts per 15 minutes</div>');
+  parts.push('</div>');
+
+  // Sign-up form (hidden initially)
+  parts.push('<div id="form-signup" style="display:none">');
+  parts.push('<div class="form-group"><label class="form-label">Full name</label><input id="signup-name" class="form-input" type="text" placeholder="Your full name" maxlength="80" autocomplete="name" /></div>');
+  parts.push('<div class="form-group"><label class="form-label">Email</label><input id="signup-email" class="form-input" type="email" placeholder="you@example.com" maxlength="254" autocomplete="email" /></div>');
+  parts.push('<div class="form-group"><label class="form-label">Password <span style="color:var(--text-3);font-weight:400">(min 8 characters)</span></label><input id="signup-password" class="form-input" type="password" placeholder="Create a password" maxlength="128" autocomplete="new-password" /></div>');
+  parts.push('<div class="form-group"><label class="form-label">I am a</label><select id="signup-role" class="form-input"><option value="">Select your role</option><option value="student">Student</option><option value="tutor">Tutor</option><option value="parent">Parent / Guardian</option></select></div>');
+  parts.push('<button class="btn btn-primary" id="signup-btn" style="width:100%;justify-content:center;margin-bottom:4px" onclick="authDoSignUp()"><i class="ti ti-user-plus"></i> Request access</button>');
+  parts.push('<div style="font-size:12px;color:var(--text-3);text-align:center;margin-bottom:4px">An admin will approve your account before you can sign in</div>');
+  parts.push('</div>');
+
+  // Divider + demo buttons
   parts.push('<div class="modal-divider">or try a demo portal</div>');
   parts.push('<div class="role-grid">');
   parts.push('<button class="role-btn" onclick="setUser(&quot;student&quot;,&quot;Lena M.&quot;)"><i class="ti ti-school"></i> Student</button>');
@@ -349,9 +376,72 @@ function renderLoginModal() {
   parts.push('<button class="role-btn" onclick="setUser(&quot;parent&quot;,&quot;Mrs. M.&quot;)"><i class="ti ti-heart-handshake"></i> Parent</button>');
   parts.push('<button class="role-btn" onclick="setUser(&quot;admin&quot;,&quot;Admin&quot;)"><i class="ti ti-shield-check"></i> Admin</button>');
   parts.push('</div>');
-  parts.push('<div class="modal-footer">Don&#39;t have an account? <a href="#" onclick="toast(\"Contact your program admin to join\",\"info\")">Request access</a></div>');
+
+  // Footer links
+  parts.push('<div class="modal-footer" style="text-align:center;margin-top:14px;font-size:12px;color:var(--text-3)">');
+  parts.push('<a href="mailto:support@nukhba.org" style="color:var(--accent)">Support</a> &nbsp;·&nbsp; ');
+  parts.push('<span style="cursor:pointer;color:var(--accent)" onclick="closeModalById(\'login-modal\');navigate(\'privacy\')">Privacy Policy</span> &nbsp;·&nbsp; ');
+  parts.push('<span style="cursor:pointer;color:var(--accent)" onclick="closeModalById(\'login-modal\');navigate(\'terms\')">Terms of Use</span>');
+  parts.push('</div>');
+
   parts.push('</div></div>');
   return parts.join('');
+}
+
+// Auth tab switch
+function authSwitchTab(tab) {
+  var isSignin = tab === 'signin';
+  document.getElementById('form-signin').style.display = isSignin ? 'block' : 'none';
+  document.getElementById('form-signup').style.display = isSignin ? 'none' : 'block';
+  document.getElementById('tab-signin').style.background = isSignin ? 'var(--surface)' : 'transparent';
+  document.getElementById('tab-signin').style.color = isSignin ? 'var(--text-1)' : 'var(--text-3)';
+  document.getElementById('tab-signup').style.background = isSignin ? 'transparent' : 'var(--surface)';
+  document.getElementById('tab-signup').style.color = isSignin ? 'var(--text-3)' : 'var(--text-1)';
+  var err = document.getElementById('auth-error');
+  if (err) { err.style.display = 'none'; err.textContent = ''; }
+}
+
+function authShowError(msg) {
+  var err = document.getElementById('auth-error');
+  if (!err) { toast(msg, 'error'); return; }
+  err.textContent = msg;
+  err.style.display = 'block';
+}
+
+function authSetLoading(btnId, loading) {
+  var btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled = loading;
+  btn.style.opacity = loading ? '0.6' : '1';
+}
+
+function authDoSignIn() {
+  var email    = (document.getElementById('signin-email') || {}).value || '';
+  var password = (document.getElementById('signin-password') || {}).value || '';
+  var err = document.getElementById('auth-error');
+  if (err) { err.style.display = 'none'; }
+  authSetLoading('signin-btn', true);
+  NukhbaAuth.signIn(email, password, function(msg) {
+    authSetLoading('signin-btn', false);
+    authShowError(msg);
+  });
+  // Re-enable after brief delay (success navigates away anyway)
+  setTimeout(function() { authSetLoading('signin-btn', false); }, 4000);
+}
+
+function authDoSignUp() {
+  var name     = (document.getElementById('signup-name') || {}).value || '';
+  var email    = (document.getElementById('signup-email') || {}).value || '';
+  var password = (document.getElementById('signup-password') || {}).value || '';
+  var role     = (document.getElementById('signup-role') || {}).value || '';
+  var err = document.getElementById('auth-error');
+  if (err) { err.style.display = 'none'; }
+  authSetLoading('signup-btn', true);
+  NukhbaAuth.signUp(email, password, name, role, function(msg) {
+    authSetLoading('signup-btn', false);
+    authShowError(msg);
+  });
+  setTimeout(function() { authSetLoading('signup-btn', false); }, 4000);
 }
 
 // ---- APP SHELL ----
@@ -381,7 +471,7 @@ function renderShell(navItems, pageContent, title) {
           <div class="user-name">${u.name}</div>
           <div class="user-role" style="text-transform:capitalize">${u.role}</div>
         </div>
-        <button class="btn btn-icon btn-ghost" onclick="setUser(null,null);State.user=null;State.page='landing';render()" title="Sign out">
+        <button class="btn btn-icon btn-ghost" onclick="NukhbaAuth.signOut()" title="Sign out">
           <i class="ti ti-logout" style="font-size:16px"></i>
         </button>
       </div>
