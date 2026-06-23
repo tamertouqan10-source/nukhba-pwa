@@ -285,22 +285,27 @@ function renderLanding() {
   parts.push('</div></div>');
   parts.push('</section>');
   parts.push('</section>');
-  parts.push('<div class="how-grid">');
 
+  // HOW IT WORKS SECTION
+  parts.push('<div class="how-section">');
+  parts.push('<div class="how-section-label">The process</div>');
+  parts.push('<div class="how-section-title">Four steps to better learning</div>');
+  parts.push('<div class="how-grid">');
   const steps = [
     ['01','Smart matching','Every student takes a short intake quiz. Our algorithm pairs them with the tutor whose teaching style, pace, and personality best complements theirs.'],
     ['02','Weekly sessions','Students book their weekly session in the app. Automatic meeting links, smart reminders, and one-tap rescheduling — no back-and-forth needed.'],
     ['03','Progress tracked','After every session the tutor completes a checklist. AI drafts a session note. Parents see the skill map update in real time — no calls needed.'],
-    ['04','Points earned','Students earn points for attending, arriving on time, and submitting homework. They redeem them for real academic rewards — teacher approved.']
+    ['04','Points earned','Students earn points for attending, arriving on time, and submitting homework. They redeem them for real academic rewards — teacher approved.'],
   ];
-  steps.forEach(function(s) {
     parts.push('<div class="how-item">');
+  steps.forEach(function(s) {
     parts.push('<div class="how-num">' + s[0] + '</div>');
     parts.push('<div class="how-title">' + s[1] + '</div>');
     parts.push('<div class="how-desc">' + s[2] + '</div>');
     parts.push('</div>');
   });
-  parts.push('</div></div>');
+  parts.push('</div>');  // close how-grid
+  parts.push('</div>');  // close how-section
 
   // FEATURE STRIP
   parts.push('<div class="feature-strip">');
