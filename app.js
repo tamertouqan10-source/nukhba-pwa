@@ -198,8 +198,14 @@ function StatusBadge(status) {
 function renderLanding() {
   const parts = [];
   parts.push('<div class="landing">');
-  parts.push('<div class="mesh-bg"><div class="mesh-orb mesh-1"></div><div class="mesh-orb mesh-2"></div><div class="mesh-orb mesh-3"></div></div>');
-  parts.push('<canvas id="grad-canvas" class="gradient-canvas"></canvas>');
+  // Gradient mesh — 5 blobs with moveVertical/moveInCircle/moveHorizontal
+  parts.push('<div class="gradient-bg">');
+  parts.push('<div class="g-blob g-1"></div>');
+  parts.push('<div class="g-blob g-2"></div>');
+  parts.push('<div class="g-blob g-3"></div>');
+  parts.push('<div class="g-blob g-4"></div>');
+  parts.push('<div class="g-blob g-5"></div>');
+  parts.push('</div>');
 
   // NAV
   parts.push('<nav class="nav">');
