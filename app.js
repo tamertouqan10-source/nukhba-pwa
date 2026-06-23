@@ -212,7 +212,6 @@ function renderLanding() {
   parts.push('<div class="nav-logo"><div class="nav-logo-mark">N</div><div><div class="nav-logo-text">Nukhba</div><div class="nav-logo-sub">Tutoring Platform</div></div></div>');
   parts.push('<div class="nav-actions">');
   parts.push('<button class="btn btn-ghost" onclick="openModal(&quot;login&quot;)">Sign in</button>');
-  parts.push('<button class="btn btn-primary" onclick="openModal(&quot;login&quot;)">Get started</button>');
   parts.push('</div></nav>');
 
   // HERO — SPLIT LAYOUT
@@ -221,7 +220,7 @@ function renderLanding() {
   // LEFT
   parts.push('<div class="hero-left">');
   parts.push('<div class="hero-eyebrow"><div class="hero-eyebrow-dot"></div>Free — Nonprofit — K–12</div>');
-  parts.push('<h1 class="hero-title">Where the <span id="hero-word" class="hero-word-anim">right</span> tutor<br>meets the <span id="hero-word-2" class="hero-word-anim">right</span> student</h1>');
+  parts.push('<h1 class="hero-title">Where the <span id="hero-word" class="hero-word-anim" style="display:inline-block;min-width:3.5ch">right</span> tutor<br>meets the <span id="hero-word-2" class="hero-word-anim" style="display:inline-block;min-width:5.5ch">right</span> student</h1>');
   parts.push('<p class="hero-sub">A thoughtfully designed tutoring platform that matches students with tutors by personality and learning style, tracks real academic progress, and keeps everyone motivated.</p>');
   parts.push('<div class="hero-cta">');
   parts.push('<button class="btn btn-primary btn-lg" onclick="openModal(&quot;login&quot;)">Join the program</button>');
@@ -294,7 +293,7 @@ function renderLanding() {
     ['04','Points earned','Students earn points for attending, arriving on time, and submitting homework. They redeem them for real academic rewards — teacher approved.']
   ];
   steps.forEach(function(s) {
-    parts.push('<div class="how-item">');
+    parts.push('<div class="how-item" style="opacity:0.7;transition:opacity 0.2s ease,transform 0.2s ease,box-shadow 0.2s ease" onmouseenter="this.style.opacity=\'1\';this.style.transform=\'translateY(-3px)\';this.style.boxShadow=\'0 8px 24px rgba(0,0,0,0.10)\'" onmouseleave="this.style.opacity=\'0.7\';this.style.transform=\'translateY(0)\';this.style.boxShadow=\'\'">');
     parts.push('<div class="how-num">' + s[0] + '</div>');
     parts.push('<div class="how-title">' + s[1] + '</div>');
     parts.push('<div class="how-desc">' + s[2] + '</div>');
@@ -1650,10 +1649,9 @@ function initGradientShader() {
 
 // ---- WORD ANIMATION ----
 var wordPairs = [
-  ['right', 'right'],
   ['perfect', 'perfect'],
-  ['best', 'best'],
   ['ideal', 'ideal'],
+  ['best', 'best'],
   ['right', 'right'],
 ];
 var wordIdx = 0;
