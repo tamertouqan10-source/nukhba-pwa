@@ -1213,7 +1213,7 @@ ul { list-style: none; }
 .gradient-canvas { display: none !important; }
 
 /* Sections that need solid backgrounds to sit above the mesh */
-.how-section    { background: #FAFAF8 !important; position: relative; z-index: 5; isolation: isolate; }
+.how-section    { background: #FAFAF8 !important; position: relative; z-index: 5; }
 .feature-strip  { background: #EDE8E1 !important; position: relative; z-index: 5; }
 .site-footer    { background: #FAFAF8 !important; position: relative; z-index: 5; }
 .how-item       { background: #F2EDE6 !important; }
@@ -1233,78 +1233,4 @@ ul { list-style: none; }
   -webkit-backdrop-filter: blur(16px) !important;
   border: 1px solid rgba(220,214,206,0.7) !important;
   box-shadow: 0 20px 60px rgba(44,33,24,0.10), 0 2px 8px rgba(44,33,24,0.06) !important;
-}
-
-/* ============================================
-   VISIBILITY FIXES
-   ============================================ */
-
-/* How section — always fully opaque, never transparent */
-.how-section {
-  background: #FAFAF8 !important;
-  position: relative !important;
-  z-index: 5 !important;
-  isolation: isolate !important;
-}
-.how-section::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: #FAFAF8;
-  z-index: -1;
-}
-.how-item {
-  background: #F2EDE6 !important;
-  border: 1px solid #DDD6CE !important;
-}
-.how-num  { color: #C0B5AB !important; font-family: 'Cormorant Garamond', Georgia, serif !important; }
-.how-title { color: #2C2118 !important; font-weight: 600 !important; font-size: 15px !important; }
-.how-desc  { color: #6B5D52 !important; font-size: 13px !important; line-height: 1.65 !important; }
-
-/* Feature strip — always visible */
-.feature-strip {
-  background: #EDE8E1 !important;
-  position: relative !important;
-  z-index: 5 !important;
-  isolation: isolate !important;
-}
-.feature-strip::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: #EDE8E1;
-  z-index: -1;
-}
-.fs-title { color: #2C2118 !important; }
-.fs-desc  { color: #8A7A70 !important; }
-
-/* Footer always visible */
-.site-footer {
-  background: #F5F0EA !important;
-  position: relative !important;
-  z-index: 5 !important;
-  isolation: isolate !important;
-}
-
-/* Nav buttons — always visible */
-.nav-actions .btn-ghost {
-  color: #6B5D52 !important;
-}
-.nav-actions .btn-ghost:hover {
-  color: #2C2118 !important;
-  background: rgba(44,33,24,0.06) !important;
-}
-.nav-actions .btn-primary {
-  background: #6B4C3B !important;
-  color: #FAF8F5 !important;
-}
-.nav-actions .btn-primary:hover {
-  background: #8B6352 !important;
-  box-shadow: 0 4px 16px rgba(107,76,59,0.25) !important;
-}
-
-/* Hero eyebrow visible */
-.hero-eyebrow {
-  background: rgba(250,250,248,0.85) !important;
-  color: #6B5D52 !important;
 }

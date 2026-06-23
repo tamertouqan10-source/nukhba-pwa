@@ -212,8 +212,8 @@ function renderLanding() {
   parts.push('<div class="nav-logo"><div class="nav-logo-mark">N</div><div><div class="nav-logo-text">Nukhba</div><div class="nav-logo-sub">Tutoring Platform</div></div></div>');
   parts.push('<div class="nav-actions">');
   parts.push('<button class="btn btn-ghost" onclick="openModal(&quot;login&quot;)">Sign in</button>');
-  parts.push('<button class="btn btn-ghost" onclick="openModal(&quot;login&quot;)">Sign in</button>');
-  // Only one nav button — Join the program is already in the hero CTA
+  parts.push('<button class="btn btn-primary" onclick="openModal(&quot;login&quot;)">Get started</button>');
+  parts.push('</div></nav>');
 
   // HERO — SPLIT LAYOUT
   parts.push('<section class="hero">');
@@ -221,7 +221,7 @@ function renderLanding() {
   // LEFT
   parts.push('<div class="hero-left">');
   parts.push('<div class="hero-eyebrow"><div class="hero-eyebrow-dot"></div>Free — Nonprofit — K–12</div>');
-  parts.push('<h1 class="hero-title">Where the <span id="hero-word" class="hero-word-anim">perfect</span><br>tutor meets the student</h1>');
+  parts.push('<h1 class="hero-title">Where the <span id="hero-word" class="hero-word-anim">right</span> tutor<br>meets the <span id="hero-word-2" class="hero-word-anim">right</span> student</h1>');
   parts.push('<p class="hero-sub">A thoughtfully designed tutoring platform that matches students with tutors by personality and learning style, tracks real academic progress, and keeps everyone motivated.</p>');
   parts.push('<div class="hero-cta">');
   parts.push('<button class="btn btn-primary btn-lg" onclick="openModal(&quot;login&quot;)">Join the program</button>');
@@ -285,27 +285,22 @@ function renderLanding() {
   parts.push('</div></div>');
   parts.push('</section>');
   parts.push('</section>');
-
-  // HOW IT WORKS SECTION
-  parts.push('<div class="how-section">');
-  parts.push('<div class="how-section-label">The process</div>');
-  parts.push('<div class="how-section-title">Four steps to better learning</div>');
   parts.push('<div class="how-grid">');
+
   const steps = [
     ['01','Smart matching','Every student takes a short intake quiz. Our algorithm pairs them with the tutor whose teaching style, pace, and personality best complements theirs.'],
     ['02','Weekly sessions','Students book their weekly session in the app. Automatic meeting links, smart reminders, and one-tap rescheduling — no back-and-forth needed.'],
     ['03','Progress tracked','After every session the tutor completes a checklist. AI drafts a session note. Parents see the skill map update in real time — no calls needed.'],
-    ['04','Points earned','Students earn points for attending, arriving on time, and submitting homework. They redeem them for real academic rewards — teacher approved.'],
+    ['04','Points earned','Students earn points for attending, arriving on time, and submitting homework. They redeem them for real academic rewards — teacher approved.']
   ];
-    parts.push('<div class="how-item">');
   steps.forEach(function(s) {
+    parts.push('<div class="how-item">');
     parts.push('<div class="how-num">' + s[0] + '</div>');
     parts.push('<div class="how-title">' + s[1] + '</div>');
     parts.push('<div class="how-desc">' + s[2] + '</div>');
     parts.push('</div>');
   });
-  parts.push('</div>');  // close how-grid
-  parts.push('</div>');  // close how-section
+  parts.push('</div></div>');
 
   // FEATURE STRIP
   parts.push('<div class="feature-strip">');
@@ -1654,32 +1649,49 @@ function initGradientShader() {
 }
 
 // ---- WORD ANIMATION ----
-
+var wordPairs = [
+  ['right', 'right'],
+  ['perfect', 'perfect'],
+  ['best', 'best'],
+  ['ideal', 'ideal'],
+  ['right', 'right'],
+];
+var wordIdx = 0;
 
 function startWordAnimation() {
-  var words = ['perfect','ideal','right','best','trusted','right'];
-  var idx = 0;
   setInterval(function() {
-    var w = document.getElementById('hero-word');
-    if (!w) return;
-    idx = (idx + 1) % words.length;
-    w.style.opacity = '0';
-    w.style.transform = 'translateY(-8px)';
+    var w1 = document.getElementById('hero-word');
+    var w2 = document.getElementById('hero-word-2');
+    if (!w1 || !w2) return;
+    wordIdx = (wordIdx + 1) % wordPairs.length;
+    
+    // Fade out
+    w1.style.transition = 'opacity .25s ease, transform .25s ease';
+    w2.style.transition = 'opacity .25s ease, transform .25s ease';
+    w1.style.opacity = '0';
+    w1.style.transform = 'translateY(-8px)';
+    w2.style.opacity = '0';
+    w2.style.transform = 'translateY(-8px)';
+    
     setTimeout(function() {
-      var el = document.getElementById('hero-word');
-      if (!el) return;
-      el.textContent = words[idx];
-      el.style.transform = 'translateY(8px)';
+      if (!document.getElementById('hero-word')) return;
+      document.getElementById('hero-word').textContent = wordPairs[wordIdx][0];
+      document.getElementById('hero-word-2').textContent = wordPairs[wordIdx][1];
+      // Fade in
+      w1 = document.getElementById('hero-word');
+      w2 = document.getElementById('hero-word-2');
+      w1.style.transform = 'translateY(8px)';
+      w2.style.transform = 'translateY(8px)';
       setTimeout(function() {
-        var el2 = document.getElementById('hero-word');
-        if (!el2) return;
-        el2.style.opacity = '1';
-        el2.style.transform = 'translateY(0)';
+        if (!document.getElementById('hero-word')) return;
+        document.getElementById('hero-word').style.opacity = '1';
+        document.getElementById('hero-word').style.transform = 'translateY(0)';
+        document.getElementById('hero-word-2').style.opacity = '1';
+        document.getElementById('hero-word-2').style.transform = 'translateY(0)';
       }, 20);
     }, 260);
-  }, 2800);
+  }, 2500);
 }
-
 
 // ---- INIT ----
 document.addEventListener('DOMContentLoaded', () => {
