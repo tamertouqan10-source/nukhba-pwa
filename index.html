@@ -6,9 +6,8 @@
   <title>Nukhba — Tutoring Platform</title>
   <meta name="description" content="Free nonprofit tutoring platform for K-12 students" />
 
-  <!-- Security headers (backup; primary headers set by Vercel via vercel.json) -->
+  <!-- Security headers (backup — primary set by Vercel vercel.json) -->
   <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-  <meta http-equiv="X-Frame-Options" content="DENY" />
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
 
   <!-- PWA -->
@@ -23,14 +22,14 @@
   <!-- Icons -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.11.0/dist/tabler-icons.min.css" />
 
-  <!-- Supabase SDK — required for real auth -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-
   <!-- App styles -->
   <link rel="stylesheet" href="styles/main.css" />
 </head>
 <body>
   <div id="app"></div>
+
+  <!-- Supabase SDK must load BEFORE supabase.js and app.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.min.js"></script>
   <script src="supabase.js"></script>
   <script src="app.js"></script>
 </body>

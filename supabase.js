@@ -16,26 +16,43 @@ var supabase = null;
 
 function initSupabase() {
   try {
-    if (typeof window !== 'undefined' && window.supabase) {
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-        auth: {
-          autoRefreshToken: true,
-          persistSession:   true,
-          detectSessionInUrl: false,
-        }
-      });
-      console.log('[Nukhba] Supabase connected');
-      supabase.auth.getSession().then(function(result) {
-        var session = result.data && result.data.session;
-        if (session && session.user) {
-          NukhbaAuth.hydrateSession(session.user);
-        }
-      });
-    } else {
-      console.warn('[Nukhba] Supabase SDK not found');
+    // The Supabase UMD bundle exposes createClient in different ways
+    // depending on the version. Handle all known patterns.
+    var createClient = null;
+    if (window.supabase && typeof window.supabase.createClient === 'function') {
+      // UMD v2 standard
+      createClient = window.supabase.createClient;
+    } else if (window.supabaseJs && typeof window.supabaseJs.createClient === 'function') {
+      createClient = window.supabaseJs.createClient;
+    } else if (typeof createClient === 'undefined' && window.supabase) {
+      // Some builds expose the module itself as a function
+      createClient = window.supabase;
     }
+
+    if (!createClient) {
+      console.error('[Nukhba] Supabase SDK not found — check script load order');
+      return;
+    }
+
+    supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: {
+        autoRefreshToken:   true,
+        persistSession:     true,
+        detectSessionInUrl: false,
+      }
+    });
+
+    console.log('[Nukhba] Supabase connected');
+
+    supabase.auth.getSession().then(function(result) {
+      var session = result.data && result.data.session;
+      if (session && session.user) {
+        NukhbaAuth.hydrateSession(session.user);
+      }
+    });
+
   } catch(e) {
-    console.warn('[Nukhba] Supabase init failed:', e.message);
+    console.error('[Nukhba] Supabase init failed:', e.message);
   }
 }
 
