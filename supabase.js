@@ -237,7 +237,7 @@ var NukhbaAuth = (function() {
         var modal = document.getElementById('login-modal');
         if (modal) {
           modal.querySelector('.modal').innerHTML =
-            '<div style="text-align:center;padding:12px 0">' +
+            '<div id="signup-confirmed" style="text-align:center;padding:12px 0">' +
             '<div style="width:52px;height:52px;background:var(--teal-soft);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">' +
             '<i class="ti ti-mail-check" style="font-size:24px;color:var(--teal)"></i></div>' +
             '<div style="font-family:var(--font-display);font-size:22px;font-weight:600;color:var(--text-1);margin-bottom:10px">Check your email</div>' +

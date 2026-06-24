@@ -424,7 +424,7 @@ function openHowItWorks() {
 /* ---- LOGIN MODAL ---- */
 function renderLoginModal() {
   var parts = [];
-  parts.push('<div class="modal-overlay" id="login-modal" onclick="if(event.target===this)closeModalById(\'login-modal\')">');
+  parts.push('<div class="modal-overlay" id="login-modal" onclick="if(event.target===this&&!document.getElementById(\'signup-confirmed\'))closeModalById(\'login-modal\')">');
   parts.push('<div class="modal" onclick="event.stopPropagation()">');
   parts.push('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">');
   parts.push('<div style="display:flex;align-items:center;gap:10px"><div class="nav-logo-mark">N</div><div style="font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--text-1)">Nukhba</div></div>');
