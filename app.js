@@ -449,6 +449,7 @@ function renderLoginModal() {
   parts.push('<div class="form-group"><label class="form-label">Full name</label><input id="signup-name" class="form-input" type="text" placeholder="Your full name" maxlength="80" autocomplete="name" /></div>');
   parts.push('<div class="form-group"><label class="form-label">Email</label><input id="signup-email" class="form-input" type="email" placeholder="you@example.com" maxlength="254" autocomplete="email" /></div>');
   parts.push('<div class="form-group"><label class="form-label">Password <span style="color:var(--text-3);font-weight:400">(min 8 characters)</span></label><input id="signup-password" class="form-input" type="password" placeholder="Create a password" maxlength="128" autocomplete="new-password" /></div>');
+  parts.push('<div class="form-group"><label class="form-label">Confirm password</label><input id="signup-password-confirm" class="form-input" type="password" placeholder="Repeat your password" maxlength="128" autocomplete="new-password" /></div>');
   parts.push('<div class="form-group"><label class="form-label">I am a</label><select id="signup-role" class="form-input"><option value="">Select your role</option><option value="student">Student</option><option value="tutor">Tutor</option><option value="parent">Parent / Guardian</option></select></div>');
   parts.push('<button class="btn btn-primary" id="signup-btn" style="width:100%;justify-content:center;margin-bottom:8px" onclick="authDoSignUp()"><i class="ti ti-user-plus"></i> Request access</button>');
   parts.push('<div style="font-size:12px;color:var(--text-3);text-align:center">An admin will approve your account before you can sign in</div>');
@@ -505,12 +506,14 @@ function authDoSignIn() {
 }
 
 function authDoSignUp() {
-  var name     = (document.getElementById('signup-name')     ||{}).value||'';
-  var email    = (document.getElementById('signup-email')    ||{}).value||'';
-  var password = (document.getElementById('signup-password') ||{}).value||'';
-  var role     = (document.getElementById('signup-role')     ||{}).value||'';
+  var name     = (document.getElementById('signup-name')             ||{}).value||'';
+  var email    = (document.getElementById('signup-email')            ||{}).value||'';
+  var password = (document.getElementById('signup-password')         ||{}).value||'';
+  var confirm  = (document.getElementById('signup-password-confirm') ||{}).value||'';
+  var role     = (document.getElementById('signup-role')             ||{}).value||'';
   var err = document.getElementById('auth-error');
   if (err) err.style.display = 'none';
+  if (password !== confirm) { authShowError('Passwords do not match.'); return; }
   authSetLoading('signup-btn', true);
   NukhbaAuth.signUp(email, password, name, role, function(msg) {
     authSetLoading('signup-btn', false);
