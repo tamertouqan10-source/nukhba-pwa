@@ -113,13 +113,13 @@ var Sanitize = (function() {
 var NukhbaAuth = (function() {
 
   function hydrateSession(authUser) {
-    if (!supabase || !authUser) return;
+    if (!_supabaseClient || !authUser) return;
     // Show loading state
     var app = document.getElementById('app');
     if (app && app.innerHTML.indexOf('loading-screen') === -1) {
       app.innerHTML = '<div class="loading-screen"><div class="loading-spinner"></div><div class="loading-text">Loading your portal...</div></div>';
     }
-    supabase
+    _supabaseClient
       .from('users')
       .select('id, full_name, role, is_approved')
       .eq('id', authUser.id)
@@ -171,7 +171,25 @@ var NukhbaAuth = (function() {
     _supabaseClient.auth.signInWithPassword({ email: email, password: password })
       .then(function(result) {
         if (result.error) {
-          if (onError) onError('Incorrect email or password.');
+          var msg = result.error.message || '';
+          // Detect email not confirmed
+          if (msg.toLowerCase().indexOf('email not confirmed') !== -1 ||
+              msg.toLowerCase().indexOf('not confirmed') !== -1) {
+            if (onError) onError('Please confirm your email address first. Check your inbox for a confirmation link.');
+            return;
+          }
+          // For any other auth error, check if the user exists but is pending approval
+          _supabaseClient.from('users').select('is_approved').eq('email', email).single()
+            .then(function(r) {
+              if (r.data && r.data.is_approved === false) {
+                if (onError) onError('Your account is pending admin approval. You will be notified once approved.');
+              } else {
+                if (onError) onError('Incorrect email or password.');
+              }
+            })
+            .catch(function() {
+              if (onError) onError('Incorrect email or password.');
+            });
           return;
         }
         if (result.data && result.data.user) hydrateSession(result.data.user);
@@ -215,7 +233,7 @@ var NukhbaAuth = (function() {
         if (insertResult && insertResult.error) {
           console.warn('[Auth] User insert error:', insertResult.error);
         }
-        toast('Account created. An admin will approve your access shortly.', 'success');
+        toast('Account created! Check your email for a confirmation link. Once confirmed, an admin will approve your access.', 'success');
         closeModalById('login-modal');
       })
       .catch(function(err) {
