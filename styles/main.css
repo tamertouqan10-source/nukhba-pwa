@@ -413,9 +413,11 @@ ul { list-style: none; }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-xl);
-  padding: 36px;
+  padding: 24px;
   width: 100%;
-  max-width: 420px;
+  max-width: 400px;
+  max-height: 90vh;
+  overflow-y: auto;
   box-shadow: var(--shadow-lg);
   animation: slideUp 0.25s ease;
 }

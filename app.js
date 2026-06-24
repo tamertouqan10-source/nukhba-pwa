@@ -621,9 +621,9 @@ function onboardingSubmit() {
   var role = State.user.role;
   var data = State.onboarding.data;
   var uid  = State.user.id;
-  if (supabase && uid) {
+  if (_supabaseClient && uid) {
     if (role === 'student') {
-      supabase.from('students').insert([{
+      _supabaseClient.from('students').insert([{
         id: uid,
         grade: parseInt(data.grade,10)||null,
         subject: data.subject||null,
@@ -632,7 +632,7 @@ function onboardingSubmit() {
         goal_description: Sanitize.text(data.goal_description||'','long'),
       }]).then(function(r){ if(r.error) console.warn('[Onboarding]',r.error); });
     } else if (role === 'tutor') {
-      supabase.from('tutors').insert([{
+      _supabaseClient.from('tutors').insert([{
         id: uid,
         subjects: data.subjects||[],
         teaching_style: data.teaching_style||null,

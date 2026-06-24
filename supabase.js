@@ -12,7 +12,7 @@
 const SUPABASE_URL = 'https://svndlstlmauqjrnkiisf.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_bvfzUDSOWBe1jnBuTqWqGw_rwTCV6gt';
 
-var supabase = null;
+var _supabaseClient = null;
 
 function initSupabase() {
   try {
@@ -34,7 +34,7 @@ function initSupabase() {
       return;
     }
 
-    supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+                    _supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: {
         autoRefreshToken:   true,
         persistSession:     true,
@@ -44,7 +44,7 @@ function initSupabase() {
 
     console.log('[Nukhba] Supabase connected');
 
-    supabase.auth.getSession().then(function(result) {
+    _supabaseClient.auth.getSession().then(function(result) {
       var session = result.data && result.data.session;
       if (session && session.user) {
         NukhbaAuth.hydrateSession(session.user);
@@ -136,7 +136,7 @@ var NukhbaAuth = (function() {
         }
         if (!data.is_approved) {
           toast('Your account is pending admin approval.', 'info');
-          supabase.auth.signOut();
+          _supabaseClient.auth.signOut();
           if (app) app.innerHTML = '';
           render();
           return;
@@ -145,7 +145,7 @@ var NukhbaAuth = (function() {
                          : data.role === 'tutor'   ? 'tutors'
                          : null;
         if (profileTable) {
-          supabase.from(profileTable).select('id').eq('id', data.id).single()
+          _supabaseClient.from(profileTable).select('id').eq('id', data.id).single()
             .then(function(pr) {
               var hasProfile = pr.data && !pr.error;
               setUser(data.role, data.full_name, data.id, !hasProfile);
@@ -167,8 +167,8 @@ var NukhbaAuth = (function() {
     var password = Sanitize.password(passwordRaw);
     if (!email)    { if (onError) onError('Please enter a valid email address.'); return; }
     if (!password) { if (onError) onError('Password must be 8–128 characters.'); return; }
-    if (!supabase) { if (onError) onError('Connection unavailable. Please refresh.'); return; }
-    supabase.auth.signInWithPassword({ email: email, password: password })
+    if (!_supabaseClient) { if (onError) onError('Connection unavailable. Please refresh.'); return; }
+    _supabaseClient.auth.signInWithPassword({ email: email, password: password })
       .then(function(result) {
         if (result.error) {
           if (onError) onError('Incorrect email or password.');
@@ -192,15 +192,15 @@ var NukhbaAuth = (function() {
     if (!password) { if (onError) onError('Password must be 8–128 characters.'); return; }
     if (!fullName) { if (onError) onError('Please enter your full name.'); return; }
     if (!role)     { if (onError) onError('Please select your role.'); return; }
-    if (!supabase) { if (onError) onError('Connection unavailable. Please refresh.'); return; }
-    supabase.auth.signUp({ email: email, password: password })
+    if (!_supabaseClient) { if (onError) onError('Connection unavailable. Please refresh.'); return; }
+    _supabaseClient.auth.signUp({ email: email, password: password })
       .then(function(result) {
         if (result.error) {
           if (onError) onError('Could not create account. This email may already be in use.');
           return null;
         }
         if (result.data && result.data.user) {
-          return supabase.from('users').insert([{
+          return _supabaseClient.from('users').insert([{
             id:          result.data.user.id,
             email:       email,
             full_name:   fullName,
@@ -225,7 +225,7 @@ var NukhbaAuth = (function() {
   }
 
   function signOut() {
-    if (supabase) supabase.auth.signOut();
+    if (_supabaseClient) _supabaseClient.auth.signOut();
     State.user   = null;
     State.page   = 'landing';
     State.modal  = null;
@@ -240,7 +240,7 @@ var NukhbaAuth = (function() {
 var DB = (function() {
 
   function q(fn) {
-    if (!supabase) return Promise.resolve({ data: null, error: 'No connection' });
+    if (!_supabaseClient) return Promise.resolve({ data: null, error: 'No connection' });
     return fn();
   }
 
@@ -248,11 +248,11 @@ var DB = (function() {
 
   function loadStudentDashboard(userId) {
     return Promise.all([
-      q(function(){ return supabase.from('students').select('*, users(full_name)').eq('id', userId).single(); }),
-      q(function(){ return supabase.from('sessions').select('*').eq('student_id', userId).order('scheduled_at', { ascending: false }).limit(10); }),
-      q(function(){ return supabase.from('skill_map').select('*').eq('student_id', userId).order('subject'); }),
-      q(function(){ return supabase.from('points_transactions').select('*').eq('student_id', userId).order('created_at', { ascending: false }).limit(20); }),
-      q(function(){ return supabase.from('rewards').select('*').eq('is_active', true); }),
+      q(function(){ return _supabaseClient.from('students').select('*, users(full_name)').eq('id', userId).single(); }),
+      q(function(){ return _supabaseClient.from('sessions').select('*').eq('student_id', userId).order('scheduled_at', { ascending: false }).limit(10); }),
+      q(function(){ return _supabaseClient.from('skill_map').select('*').eq('student_id', userId).order('subject'); }),
+      q(function(){ return _supabaseClient.from('points_transactions').select('*').eq('student_id', userId).order('created_at', { ascending: false }).limit(20); }),
+      q(function(){ return _supabaseClient.from('rewards').select('*').eq('is_active', true); }),
     ]).then(function(results) {
       return {
         student:      results[0].data,
@@ -266,10 +266,10 @@ var DB = (function() {
 
   function loadTutorDashboard(userId) {
     return Promise.all([
-      q(function(){ return supabase.from('tutors').select('*, users(full_name)').eq('id', userId).single(); }),
-      q(function(){ return supabase.from('students').select('*, users(full_name), sessions(count)').eq('tutor_id', userId); }),
-      q(function(){ return supabase.from('sessions').select('*').eq('tutor_id', userId).order('scheduled_at', { ascending: false }).limit(20); }),
-      q(function(){ return supabase.from('tutor_hours').select('*').eq('tutor_id', userId).order('session_date', { ascending: false }); }),
+      q(function(){ return _supabaseClient.from('tutors').select('*, users(full_name)').eq('id', userId).single(); }),
+      q(function(){ return _supabaseClient.from('students').select('*, users(full_name), sessions(count)').eq('tutor_id', userId); }),
+      q(function(){ return _supabaseClient.from('sessions').select('*').eq('tutor_id', userId).order('scheduled_at', { ascending: false }).limit(20); }),
+      q(function(){ return _supabaseClient.from('tutor_hours').select('*').eq('tutor_id', userId).order('session_date', { ascending: false }); }),
     ]).then(function(results) {
       return {
         tutor:    results[0].data,
@@ -281,16 +281,16 @@ var DB = (function() {
   }
 
   function loadParentDashboard(userId) {
-    return q(function(){ return supabase.from('students').select('*, users(full_name), skill_map(*), sessions(*)').eq('parent_id', userId); })
+    return q(function(){ return _supabaseClient.from('students').select('*, users(full_name), skill_map(*), sessions(*)').eq('parent_id', userId); })
       .then(function(r) { return { students: r.data || [] }; });
   }
 
   function loadAdminDashboard() {
     return Promise.all([
-      q(function(){ return supabase.from('users').select('id, full_name, role, is_approved, created_at').order('created_at', { ascending: false }); }),
-      q(function(){ return supabase.from('sessions').select('*, students(id, users(full_name)), tutors(id, users(full_name))').gte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(20); }),
-      q(function(){ return supabase.from('reward_requests').select('*, students(id, users(full_name), points_balance), rewards(name, cost_points)').eq('status', 'pending').order('created_at', { ascending: false }); }),
-      q(function(){ return supabase.from('tutor_hours').select('tutor_id, hours_logged, tutors(users(full_name))'); }),
+      q(function(){ return _supabaseClient.from('users').select('id, full_name, role, is_approved, created_at').order('created_at', { ascending: false }); }),
+      q(function(){ return _supabaseClient.from('sessions').select('*, students(id, users(full_name)), tutors(id, users(full_name))').gte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(20); }),
+      q(function(){ return _supabaseClient.from('reward_requests').select('*, students(id, users(full_name), points_balance), rewards(name, cost_points)').eq('status', 'pending').order('created_at', { ascending: false }); }),
+      q(function(){ return _supabaseClient.from('tutor_hours').select('tutor_id, hours_logged, tutors(users(full_name))'); }),
     ]).then(function(results) {
       return {
         users:          results[0].data || [],
@@ -302,13 +302,13 @@ var DB = (function() {
   }
 
   function loadRewards() {
-    return q(function(){ return supabase.from('rewards').select('*').eq('is_active', true).order('cost_points'); })
+    return q(function(){ return _supabaseClient.from('rewards').select('*').eq('is_active', true).order('cost_points'); })
       .then(function(r) { return r.data || []; });
   }
 
   function loadMessages(userId) {
     return q(function(){
-      return supabase.from('messages')
+      return _supabaseClient.from('messages')
         .select('*, sender:users!sender_id(full_name), receiver:users!receiver_id(full_name)')
         .or('sender_id.eq.' + userId + ',receiver_id.eq.' + userId)
         .order('created_at', { ascending: false })
@@ -329,14 +329,14 @@ var DB = (function() {
       is_approved:          false,
     };
     if (!clean.session_id) return Promise.resolve({ error: 'Missing session ID' });
-    return q(function(){ return supabase.from('session_notes').insert([clean]); });
+    return q(function(){ return _supabaseClient.from('session_notes').insert([clean]); });
   }
 
   function awardPoints(studentId, amount, reason) {
     if (!Number.isInteger(amount) || amount < 1 || amount > 500)
       return Promise.resolve({ error: 'Invalid point amount' });
     return q(function(){
-      return supabase.from('points_transactions').insert([{
+      return _supabaseClient.from('points_transactions').insert([{
         student_id: studentId,
         amount:     amount,
         type:       'earn',
@@ -349,7 +349,7 @@ var DB = (function() {
     if (!studentId || !rewardId || !costPoints)
       return Promise.resolve({ error: 'Missing fields' });
     return q(function(){
-      return supabase.from('reward_requests').insert([{
+      return _supabaseClient.from('reward_requests').insert([{
         student_id:  studentId,
         reward_id:   rewardId,
         cost_points: costPoints,
@@ -361,7 +361,7 @@ var DB = (function() {
   function resolveReward(requestId, approved, reviewerId) {
     if (!requestId) return Promise.resolve({ error: 'Missing request ID' });
     return q(function(){
-      return supabase.from('reward_requests').update({
+      return _supabaseClient.from('reward_requests').update({
         status:      approved ? 'approved' : 'denied',
         reviewed_by: reviewerId,
         reviewed_at: new Date().toISOString(),
@@ -374,7 +374,7 @@ var DB = (function() {
     if (!clean)   return Promise.resolve({ error: 'Message cannot be empty' });
     if (!fromId || !toId) return Promise.resolve({ error: 'Missing users' });
     return q(function(){
-      return supabase.from('messages').insert([{
+      return _supabaseClient.from('messages').insert([{
         sender_id:   fromId,
         receiver_id: toId,
         content:     clean,
@@ -384,19 +384,19 @@ var DB = (function() {
 
   function approveUser(userId) {
     return q(function(){
-      return supabase.from('users').update({ is_approved: true }).eq('id', userId);
+      return _supabaseClient.from('users').update({ is_approved: true }).eq('id', userId);
     });
   }
 
   function denyUser(userId) {
     return q(function(){
-      return supabase.from('users').delete().eq('id', userId);
+      return _supabaseClient.from('users').delete().eq('id', userId);
     });
   }
 
   function markSessionComplete(sessionId, studentId) {
     return q(function(){
-      return supabase.from('sessions').update({
+      return _supabaseClient.from('sessions').update({
         status: 'completed',
         student_arrived_on_time: true,
       }).eq('id', sessionId);
@@ -431,8 +431,8 @@ var DB = (function() {
 var Realtime = (function() {
   var channels = [];
   function subscribeMessages(userId, onMessage) {
-    if (!supabase) return;
-    var ch = supabase.channel('messages-' + userId)
+    if (!_supabaseClient) return;
+    var ch = _supabaseClient.channel('messages-' + userId)
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'messages',
         filter: 'receiver_id=eq.' + userId,
@@ -443,7 +443,7 @@ var Realtime = (function() {
     channels.push(ch);
   }
   function unsubscribeAll() {
-    channels.forEach(function(ch) { supabase && supabase.removeChannel(ch); });
+    channels.forEach(function(ch) { supabase && _supabaseClient.removeChannel(ch); });
     channels = [];
   }
   return { subscribeMessages: subscribeMessages, unsubscribeAll: unsubscribeAll };
@@ -455,3 +455,6 @@ if (document.readyState === 'loading') {
 } else {
   initSupabase();
 }
+
+// Expose client as 'supabase' for backward compatibility with app.js
+Object.defineProperty(window, 'supabaseClient', { get: function() { return _supabaseClient; } });
