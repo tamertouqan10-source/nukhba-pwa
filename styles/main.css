@@ -793,7 +793,8 @@ ul { list-style: none; }
   cursor: pointer;
 }
 .reward-card:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: var(--shadow); }
-.reward-icon { font-size: 28px; margin-bottom: 10px; }
+.reward-icon { width: 38px; height: 38px; border-radius: 10px; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+.reward-icon i { font-size: 18px; color: var(--accent); }
 .reward-name { font-size: 13px; font-weight: 600; color: var(--text-1); margin-bottom: 4px; }
 .reward-cost { font-size: 18px; font-weight: 600; color: var(--accent); margin-bottom: 6px; font-family: var(--font-display); }
 .reward-desc { font-size: 11px; color: var(--text-3); line-height: 1.5; margin-bottom: 12px; }

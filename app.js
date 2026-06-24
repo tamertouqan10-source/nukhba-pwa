@@ -133,12 +133,12 @@ const DATA = {
     { name: 'Trigonometry', pct: 12, status: 'not-started' },
   ],
   rewards: [
-    { id: 1, icon: '⭐', name: 'Extra credit', cost: 300, desc: '+5 points on next graded assignment' },
-    { id: 2, icon: '📋', name: 'Homework pass', cost: 250, desc: 'Skip one homework assignment' },
-    { id: 3, icon: '⏰', name: 'Deadline extension', cost: 200, desc: '48-hour extension on one assignment' },
-    { id: 4, icon: '🔁', name: 'Quiz retake', cost: 400, desc: 'Retake one quiz for a better grade' },
-    { id: 5, icon: '🎯', name: 'Choose topic', cost: 150, desc: 'Pick next session\'s focus topic' },
-    { id: 6, icon: '🏆', name: 'Certificate', cost: 500, desc: 'Official certificate of excellence' },
+    { id: 1, icon: 'ti-star', name: 'Extra credit', cost: 300, desc: '+5 points on next graded assignment' },
+    { id: 2, icon: 'ti-clipboard', name: 'Homework pass', cost: 250, desc: 'Skip one homework assignment' },
+    { id: 3, icon: 'ti-clock-hour-4', name: 'Deadline extension', cost: 200, desc: '48-hour extension on one assignment' },
+    { id: 4, icon: 'ti-refresh', name: 'Quiz retake', cost: 400, desc: 'Retake one quiz for a better grade' },
+    { id: 5, icon: 'ti-target', name: 'Choose topic', cost: 150, desc: 'Pick next session\'s focus topic' },
+    { id: 6, icon: 'ti-certificate', name: 'Certificate', cost: 500, desc: 'Official certificate of excellence' },
   ],
   approvals: [
     { id: 1, student: 'Lena M.', initials: 'LM', reward: 'Extra credit', cost: 300, balance: 1240, time: '2 hours ago', tutor: 'Ahmed H.' },
@@ -523,7 +523,7 @@ function renderStudentDashboard() {
   const content = `
   <div class="page-header">
     <div>
-      <div class="page-title">Good afternoon, Lena 👋</div>
+      <div class="page-title">Good afternoon, Lena</div>
       <div class="page-sub">Your next session is tomorrow at 4:00 PM with Ahmed H.</div>
     </div>
     <button class="btn btn-primary" onclick="navigate('student-sessions')">
@@ -565,7 +565,7 @@ function renderStudentDashboard() {
         ${['W1','W2','W3','W4','W5','W6','W7','W8','W9','W10'].map((w,i)=>`
           <div class="streak-week">
             <div class="streak-dot ${i===9?'today':i<8?'done':''}">${w}</div>
-            <div class="streak-wk">${i===9?'Now':i===1?'❄️':''}</div>
+            <div class="streak-wk">${i===9?'Now':i===1?'<i class="ti ti-snowflake" style="font-size:10px;color:var(--accent)"></i>':''}</div>
           </div>`).join('')}
       </div>
     </div>
@@ -721,7 +721,7 @@ function renderStudentProgress() {
         </div>
         <div style="min-width:48px;text-align:right">
           <div style="font-size:13px;font-weight:600;color:var(--text-1)">${s.pct}%</div>
-          <div style="margin-top:4px">${s.status==='mastered'?Badge('✓','g'):s.status==='progress'?Badge('~','a'):Badge('–','r')}</div>
+          <div style="margin-top:4px">${s.status==='mastered'?Badge('Mastered','g'):s.status==='progress'?Badge('In progress','a'):Badge('Not started','r')}</div>
         </div>
       </div>`).join('')}
     </div>
@@ -731,7 +731,7 @@ function renderStudentProgress() {
       ${[
         { week: 'Jun 9', topic: 'Quadratic functions', flag: 'Negative coefficients need work' },
         { week: 'Jun 2', topic: 'Systems of equations', flag: 'Elimination method needs review' },
-        { week: 'May 26', topic: 'Linear equations', flag: 'Mastered ✓' },
+        { week: 'May 26', topic: 'Linear equations', flag: 'Mastered' },
         { week: 'May 19', topic: 'Linear equations intro', flag: null },
       ].map(s => `
       <div style="padding:12px 0;border-bottom:1px solid var(--border-2)">
@@ -797,8 +797,8 @@ function renderStudentPoints() {
     </div>
     <div class="reward-grid">
       ${DATA.rewards.map(r => `
-      <div class="reward-card" onclick="toast('Redemption request sent to teacher!','success')">
-        <div class="reward-icon">${r.icon}</div>
+      <div class="reward-card" onclick="toast('Redemption request sent to your tutor for approval.','success')">
+        <div class="reward-icon"><i class="ti ${r.icon}"></i></div>
         <div class="reward-name">${r.name}</div>
         <div class="reward-cost">${r.cost} pts</div>
         <div class="reward-desc">${r.desc}</div>
@@ -908,7 +908,7 @@ function renderTutorDashboard() {
   const content = `
   <div class="page-header">
     <div>
-      <div class="page-title">Good afternoon, Ahmed 👋</div>
+      <div class="page-title">Good afternoon, Ahmed</div>
       <div class="page-sub">You have 2 active students and 1 session tomorrow</div>
     </div>
     <button class="btn btn-primary" onclick="navigate('tutor-notes')">
@@ -1162,7 +1162,7 @@ function renderParentDashboard() {
   const content = `
   <div class="page-header">
     <div>
-      <div class="page-title">Hello, Mrs. M. 👋</div>
+      <div class="page-title">Hello, Mrs. M.</div>
       <div class="page-sub">Here\'s how Lena is doing this week</div>
     </div>
   </div>
