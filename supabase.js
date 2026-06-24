@@ -233,8 +233,19 @@ var NukhbaAuth = (function() {
         if (insertResult && insertResult.error) {
           console.warn('[Auth] User insert error:', insertResult.error);
         }
-        toast('Account created! Check your email for a confirmation link. Once confirmed, an admin will approve your access.', 'success');
-        closeModalById('login-modal');
+        // Show persistent confirmation banner instead of disappearing toast
+        var modal = document.getElementById('login-modal');
+        if (modal) {
+          modal.querySelector('.modal').innerHTML =
+            '<div style="text-align:center;padding:12px 0">' +
+            '<div style="width:52px;height:52px;background:var(--teal-soft);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">' +
+            '<i class="ti ti-mail-check" style="font-size:24px;color:var(--teal)"></i></div>' +
+            '<div style="font-family:var(--font-display);font-size:22px;font-weight:600;color:var(--text-1);margin-bottom:10px">Check your email</div>' +
+            '<div style="font-size:14px;color:var(--text-2);line-height:1.7;margin-bottom:20px">We sent a confirmation link to<br><strong style="color:var(--text-1)">' + email + '</strong><br><br>Click the link in that email to confirm your address. Once confirmed, an admin will review and approve your account.</div>' +
+            '<div style="font-size:12px;color:var(--text-3);margin-bottom:20px">Did not receive it? Check your spam folder.</div>' +
+            '<button class="btn btn-primary" style="width:100%;justify-content:center" onclick="closeModalById(\'login-modal\')">Got it</button>' +
+            '</div>';
+        }
       })
       .catch(function(err) {
         if (onError) onError('Something went wrong. Please try again.');
