@@ -1,24 +1,14 @@
 /* ============================================
-   NUKHBA — SUPABASE + AUTH + SECURITY
+   NUKHBA — SUPABASE + AUTH + SECURITY v2
    ============================================
    SECURITY NOTES:
    - SUPABASE_URL and SUPABASE_KEY are the Supabase
-     "anon/publishable" key, safe for frontend use.
+     anon/publishable key — safe for frontend use.
      Row Level Security (RLS) enforces all access control.
-   - No private keys, service-role keys, or secrets
-     are ever stored here or committed to Git.
-   - Rate limiting is enforced client-side as a UX
-     guard. Supabase Auth has its own server-side
-     rate limits as the true enforcement layer.
+   - No private keys or secrets are ever stored here.
+   - Service-role key must only live in Vercel env vars.
    ============================================ */
 
-// ------------------------------------
-// CONFIG — Supabase publishable key only.
-// This is intentionally public (anon key).
-// Real secrets (service_role key etc.) must
-// only ever live in Vercel environment variables,
-// never in frontend code or this file.
-// ------------------------------------
 const SUPABASE_URL = 'https://svndlstlmauqjrnkiisf.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_bvfzUDSOWBe1jnBuTqWqGw_rwTCV6gt';
 
@@ -30,12 +20,11 @@ function initSupabase() {
       supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
         auth: {
           autoRefreshToken: true,
-          persistSession: true,
+          persistSession:   true,
           detectSessionInUrl: false,
         }
       });
       console.log('[Nukhba] Supabase connected');
-      // Re-hydrate session on page load
       supabase.auth.getSession().then(function(result) {
         var session = result.data && result.data.session;
         if (session && session.user) {
@@ -43,214 +32,173 @@ function initSupabase() {
         }
       });
     } else {
-      console.warn('[Nukhba] Supabase SDK not found — running in demo mode');
+      console.warn('[Nukhba] Supabase SDK not found');
     }
   } catch(e) {
-    console.warn('[Nukhba] Supabase init failed, demo mode:', e.message);
+    console.warn('[Nukhba] Supabase init failed:', e.message);
   }
 }
 
-// ------------------------------------
-// RATE LIMITER
-// Client-side guard: max 5 attempts per 15 minutes per action.
-// Supabase also enforces server-side limits — this is defence-in-depth.
-// ------------------------------------
+/* ---- RATE LIMITER ---- */
 var RateLimit = (function() {
-  var store = {}; // { key: [timestamp, ...] }
-  var MAX_ATTEMPTS = 5;
-  var WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-
+  var store = {};
+  var MAX   = 5;
+  var WIN   = 15 * 60 * 1000;
   function check(key) {
     var now = Date.now();
     if (!store[key]) store[key] = [];
-    // Remove timestamps outside the window
-    store[key] = store[key].filter(function(t) { return now - t < WINDOW_MS; });
-    if (store[key].length >= MAX_ATTEMPTS) {
-      var oldest = store[key][0];
-      var waitMs = WINDOW_MS - (now - oldest);
-      var waitMin = Math.ceil(waitMs / 60000);
-      return { allowed: false, wait: waitMin };
+    store[key] = store[key].filter(function(t){ return now - t < WIN; });
+    if (store[key].length >= MAX) {
+      var wait = Math.ceil((WIN - (now - store[key][0])) / 60000);
+      return { allowed: false, wait: wait };
     }
     store[key].push(now);
     return { allowed: true };
   }
-
-  function remaining(key) {
-    var now = Date.now();
-    if (!store[key]) return MAX_ATTEMPTS;
-    store[key] = store[key].filter(function(t) { return now - t < WINDOW_MS; });
-    return Math.max(0, MAX_ATTEMPTS - store[key].length);
-  }
-
-  return { check: check, remaining: remaining };
+  return { check: check };
 })();
 
-// ------------------------------------
-// INPUT SANITIZER
-// Strips HTML, enforces length limits, validates format.
-// Call before any user input touches the DB or DOM.
-// ------------------------------------
+/* ---- SANITIZER ---- */
 var Sanitize = (function() {
-  var LIMITS = {
-    email:    254,
-    password: 128,
-    name:     80,
-    text:     500,
-    long:     2000,
-  };
-
-  // Strip all HTML tags and dangerous characters
+  var LIMITS = { email: 254, password: 128, name: 80, text: 500, long: 2000 };
   function strip(str) {
     if (typeof str !== 'string') return '';
-    return str
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#x27;')
-      .replace(/`/g, '&#x60;')
-      .trim();
+    return str.replace(/</g,'&lt;').replace(/>/g,'&gt;')
+              .replace(/"/g,'&quot;').replace(/'/g,'&#x27;')
+              .replace(/`/g,'&#x60;').trim();
   }
-
   function email(val) {
     var s = strip(val).toLowerCase();
     if (s.length > LIMITS.email) return null;
-    // RFC 5322 simplified
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) return null;
     return s;
   }
-
   function password(val) {
     if (typeof val !== 'string') return null;
     if (val.length < 8 || val.length > LIMITS.password) return null;
-    return val; // Don't strip password — special chars are valid
+    return val;
   }
-
   function name(val) {
     var s = strip(val);
     if (!s || s.length > LIMITS.name) return null;
     return s;
   }
-
   function text(val, type) {
     var s = strip(val);
     var limit = LIMITS[type] || LIMITS.text;
     if (s.length > limit) return null;
     return s;
   }
-
   return { email: email, password: password, name: name, text: text, strip: strip };
 })();
 
-// ------------------------------------
-// AUTH MODULE
-// Handles sign-in, sign-up, sign-out, session hydration.
-// All inputs sanitized + rate limited before hitting Supabase.
-// ------------------------------------
+/* ---- AUTH MODULE ---- */
 var NukhbaAuth = (function() {
 
-  // After successful auth, load the user's DB profile and route them
   function hydrateSession(authUser) {
     if (!supabase || !authUser) return;
+    // Show loading state
+    var app = document.getElementById('app');
+    if (app && app.innerHTML.indexOf('loading-screen') === -1) {
+      app.innerHTML = '<div class="loading-screen"><div class="loading-spinner"></div><div class="loading-text">Loading your portal...</div></div>';
+    }
     supabase
       .from('users')
-      .select('id, name, role, is_approved')
+      .select('id, full_name, role, is_approved')
       .eq('id', authUser.id)
       .single()
       .then(function(result) {
-        var data = result.data;
+        var data  = result.data;
         var error = result.error;
         if (error || !data) {
-          console.warn('[Auth] Could not load user profile:', error);
-          toast('Could not load your profile. Please try again.', 'error');
+          console.warn('[Auth] Could not load profile:', error);
+          toast('Could not load your profile. Please sign in again.', 'error');
+          if (app) app.innerHTML = '';
+          render();
           return;
         }
         if (!data.is_approved) {
-          toast('Your account is pending admin approval. You will be notified when approved.', 'info');
+          toast('Your account is pending admin approval.', 'info');
           supabase.auth.signOut();
+          if (app) app.innerHTML = '';
+          render();
           return;
         }
-        // Route to the correct portal
-        setUser(data.role, data.name, data.id);
+        var profileTable = data.role === 'student' ? 'students'
+                         : data.role === 'tutor'   ? 'tutors'
+                         : null;
+        if (profileTable) {
+          supabase.from(profileTable).select('id').eq('id', data.id).single()
+            .then(function(pr) {
+              var hasProfile = pr.data && !pr.error;
+              setUser(data.role, data.full_name, data.id, !hasProfile);
+            });
+        } else {
+          setUser(data.role, data.full_name, data.id,
+            data.role === 'parent' ? true : false);
+        }
       });
   }
 
   function signIn(emailRaw, passwordRaw, onError) {
-    // Rate limit check
     var rl = RateLimit.check('login');
     if (!rl.allowed) {
-      if (onError) onError('Too many attempts. Please wait ' + rl.wait + ' minute(s) before trying again.');
+      if (onError) onError('Too many attempts. Wait ' + rl.wait + ' minute(s).');
       return;
     }
-
-    // Sanitize
-    var email = Sanitize.email(emailRaw);
+    var email    = Sanitize.email(emailRaw);
     var password = Sanitize.password(passwordRaw);
-    if (!email) { if (onError) onError('Please enter a valid email address.'); return; }
+    if (!email)    { if (onError) onError('Please enter a valid email address.'); return; }
     if (!password) { if (onError) onError('Password must be 8–128 characters.'); return; }
-
-    if (!supabase) {
-      if (onError) onError('Running in demo mode — use the demo portal buttons below.');
-      return;
-    }
-
+    if (!supabase) { if (onError) onError('Connection unavailable. Please refresh.'); return; }
     supabase.auth.signInWithPassword({ email: email, password: password })
       .then(function(result) {
-        var data = result.data;
-        var error = result.error;
-        if (error) {
-          // Generic message — never expose Supabase internals
+        if (result.error) {
           if (onError) onError('Incorrect email or password.');
           return;
         }
-        if (data && data.user) {
-          hydrateSession(data.user);
-        }
+        if (result.data && result.data.user) hydrateSession(result.data.user);
       });
   }
 
   function signUp(emailRaw, passwordRaw, nameRaw, roleRaw, onError) {
     var rl = RateLimit.check('signup');
     if (!rl.allowed) {
-      if (onError) onError('Too many attempts. Please wait ' + rl.wait + ' minute(s).');
+      if (onError) onError('Too many attempts. Wait ' + rl.wait + ' minute(s).');
       return;
     }
-
     var email    = Sanitize.email(emailRaw);
     var password = Sanitize.password(passwordRaw);
     var fullName = Sanitize.name(nameRaw);
     var role     = ['student','tutor','parent'].includes(roleRaw) ? roleRaw : null;
-
     if (!email)    { if (onError) onError('Please enter a valid email address.'); return; }
     if (!password) { if (onError) onError('Password must be 8–128 characters.'); return; }
-    if (!fullName) { if (onError) onError('Please enter your full name (max 80 characters).'); return; }
-    if (!role)     { if (onError) onError('Please select a valid role.'); return; }
-
-    if (!supabase) {
-      if (onError) onError('Running in demo mode — sign-up is not available.');
-      return;
-    }
-
+    if (!fullName) { if (onError) onError('Please enter your full name.'); return; }
+    if (!role)     { if (onError) onError('Please select your role.'); return; }
+    if (!supabase) { if (onError) onError('Connection unavailable. Please refresh.'); return; }
     supabase.auth.signUp({ email: email, password: password })
       .then(function(result) {
-        var data = result.data;
-        var error = result.error;
-        if (error) {
-          if (onError) onError('Could not create account. This email may already be registered.');
-          return;
+        if (result.error) {
+          if (onError) onError('Could not create account. This email may already be in use.');
+          return null;
         }
-        if (data && data.user) {
-          // Insert into users table — is_approved defaults to false
+        if (result.data && result.data.user) {
           return supabase.from('users').insert([{
-            id:          data.user.id,
+            id:          result.data.user.id,
             email:       email,
-            name:        fullName,
+            full_name:   fullName,
             role:        role,
             is_approved: false,
           }]);
         }
+        return null;
       })
-      .then(function() {
-        toast('Account created! An admin will review and approve your access shortly.', 'success');
+      .then(function(insertResult) {
+        if (!insertResult) return;
+        if (insertResult && insertResult.error) {
+          console.warn('[Auth] User insert error:', insertResult.error);
+        }
+        toast('Account created. An admin will approve your access shortly.', 'success');
         closeModalById('login-modal');
       })
       .catch(function(err) {
@@ -261,121 +209,230 @@ var NukhbaAuth = (function() {
 
   function signOut() {
     if (supabase) supabase.auth.signOut();
-    State.user = null;
-    State.page = 'landing';
-    State.modal = null;
+    State.user   = null;
+    State.page   = 'landing';
+    State.modal  = null;
+    State.liveData = {};
     render();
   }
 
   return { signIn: signIn, signUp: signUp, signOut: signOut, hydrateSession: hydrateSession };
 })();
 
-// ------------------------------------
-// DB HELPERS
-// All writes go through these — never raw .insert()/.update() in app.js.
-// Each helper validates data before sending.
-// ------------------------------------
+/* ---- DB — ALL DATA LOADING & WRITES ---- */
 var DB = (function() {
 
-  function requireSupabase(fn) {
-    if (!supabase) { console.warn('[DB] No Supabase connection'); return Promise.resolve(null); }
+  function q(fn) {
+    if (!supabase) return Promise.resolve({ data: null, error: 'No connection' });
     return fn();
   }
 
-  // Read current user's profile
-  function getProfile(userId) {
-    return requireSupabase(function() {
-      return supabase.from('users').select('*').eq('id', userId).single();
+  /* ---- READS ---- */
+
+  function loadStudentDashboard(userId) {
+    return Promise.all([
+      q(function(){ return supabase.from('students').select('*, users(full_name)').eq('id', userId).single(); }),
+      q(function(){ return supabase.from('sessions').select('*').eq('student_id', userId).order('scheduled_at', { ascending: false }).limit(10); }),
+      q(function(){ return supabase.from('skill_map').select('*').eq('student_id', userId).order('subject'); }),
+      q(function(){ return supabase.from('points_transactions').select('*').eq('student_id', userId).order('created_at', { ascending: false }).limit(20); }),
+      q(function(){ return supabase.from('rewards').select('*').eq('is_active', true); }),
+    ]).then(function(results) {
+      return {
+        student:      results[0].data,
+        sessions:     results[1].data || [],
+        skills:       results[2].data || [],
+        transactions: results[3].data || [],
+        rewards:      results[4].data || [],
+      };
     });
   }
 
-  // Save a session note (tutor only)
+  function loadTutorDashboard(userId) {
+    return Promise.all([
+      q(function(){ return supabase.from('tutors').select('*, users(full_name)').eq('id', userId).single(); }),
+      q(function(){ return supabase.from('students').select('*, users(full_name), sessions(count)').eq('tutor_id', userId); }),
+      q(function(){ return supabase.from('sessions').select('*').eq('tutor_id', userId).order('scheduled_at', { ascending: false }).limit(20); }),
+      q(function(){ return supabase.from('tutor_hours').select('*').eq('tutor_id', userId).order('session_date', { ascending: false }); }),
+    ]).then(function(results) {
+      return {
+        tutor:    results[0].data,
+        students: results[1].data || [],
+        sessions: results[2].data || [],
+        hours:    results[3].data || [],
+      };
+    });
+  }
+
+  function loadParentDashboard(userId) {
+    return q(function(){ return supabase.from('students').select('*, users(full_name), skill_map(*), sessions(*)').eq('parent_id', userId); })
+      .then(function(r) { return { students: r.data || [] }; });
+  }
+
+  function loadAdminDashboard() {
+    return Promise.all([
+      q(function(){ return supabase.from('users').select('id, full_name, role, is_approved, created_at').order('created_at', { ascending: false }); }),
+      q(function(){ return supabase.from('sessions').select('*, students(id, users(full_name)), tutors(id, users(full_name))').gte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(20); }),
+      q(function(){ return supabase.from('reward_requests').select('*, students(id, users(full_name), points_balance), rewards(name, cost_points)').eq('status', 'pending').order('created_at', { ascending: false }); }),
+      q(function(){ return supabase.from('tutor_hours').select('tutor_id, hours_logged, tutors(users(full_name))'); }),
+    ]).then(function(results) {
+      return {
+        users:          results[0].data || [],
+        sessions:       results[1].data || [],
+        rewardRequests: results[2].data || [],
+        tutorHours:     results[3].data || [],
+      };
+    });
+  }
+
+  function loadRewards() {
+    return q(function(){ return supabase.from('rewards').select('*').eq('is_active', true).order('cost_points'); })
+      .then(function(r) { return r.data || []; });
+  }
+
+  function loadMessages(userId) {
+    return q(function(){
+      return supabase.from('messages')
+        .select('*, sender:users!sender_id(full_name), receiver:users!receiver_id(full_name)')
+        .or('sender_id.eq.' + userId + ',receiver_id.eq.' + userId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+    }).then(function(r) { return r.data || []; });
+  }
+
+  /* ---- WRITES ---- */
+
   function saveSessionNote(note) {
     var clean = {
-      session_id:         note.session_id,
-      topics_covered:     Sanitize.text(note.topics_covered || '', 'long'),
-      understanding_rating: parseInt(note.understanding_rating, 10) || 3,
-      flag_for_next:      Sanitize.text(note.flag_for_next || '', 'text'),
-      homework_assigned:  Sanitize.text(note.homework_assigned || '', 'text'),
-      final_note:         Sanitize.text(note.final_note || '', 'long'),
-      is_approved:        false,
+      session_id:           note.session_id,
+      topics_covered:       [Sanitize.text(note.topics_covered || '', 'long')].filter(Boolean),
+      understanding_rating: Math.min(5, Math.max(1, parseInt(note.understanding_rating, 10) || 3)),
+      flag_for_next:        Sanitize.text(note.flag_for_next || '', 'text'),
+      homework_assigned:    Sanitize.text(note.homework_assigned || '', 'text'),
+      final_note:           Sanitize.text(note.final_note || '', 'long'),
+      is_approved:          false,
     };
-    // Reject oversized or malformed data
     if (!clean.session_id) return Promise.resolve({ error: 'Missing session ID' });
-    if (clean.understanding_rating < 1 || clean.understanding_rating > 5) {
-      return Promise.resolve({ error: 'Rating must be 1–5' });
-    }
-    return requireSupabase(function() {
-      return supabase.from('session_notes').insert([clean]);
-    });
+    return q(function(){ return supabase.from('session_notes').insert([clean]); });
   }
 
-  // Log a points transaction (system only — not direct user writes)
   function awardPoints(studentId, amount, reason) {
-    if (!Number.isInteger(amount) || amount < 0 || amount > 1000) {
+    if (!Number.isInteger(amount) || amount < 1 || amount > 500)
       return Promise.resolve({ error: 'Invalid point amount' });
-    }
-    var cleanReason = Sanitize.text(reason || '', 'text');
-    return requireSupabase(function() {
+    return q(function(){
       return supabase.from('points_transactions').insert([{
         student_id: studentId,
         amount:     amount,
         type:       'earn',
-        reason:     cleanReason,
+        reason:     Sanitize.text(reason || '', 'text'),
       }]);
     });
   }
 
-  // Submit a reward request (student only)
-  function requestReward(studentId, rewardId) {
-    if (!studentId || !rewardId) return Promise.resolve({ error: 'Missing fields' });
-    return requireSupabase(function() {
+  function requestReward(studentId, rewardId, costPoints) {
+    if (!studentId || !rewardId || !costPoints)
+      return Promise.resolve({ error: 'Missing fields' });
+    return q(function(){
       return supabase.from('reward_requests').insert([{
-        student_id: studentId,
-        reward_id:  rewardId,
-        status:     'pending',
+        student_id:  studentId,
+        reward_id:   rewardId,
+        cost_points: costPoints,
+        status:      'pending',
       }]);
     });
   }
 
-  // Approve/deny a reward request (admin/tutor only)
-  function resolveReward(requestId, approved) {
+  function resolveReward(requestId, approved, reviewerId) {
     if (!requestId) return Promise.resolve({ error: 'Missing request ID' });
-    return requireSupabase(function() {
-      return supabase
-        .from('reward_requests')
-        .update({ status: approved ? 'approved' : 'denied' })
-        .eq('id', requestId);
+    return q(function(){
+      return supabase.from('reward_requests').update({
+        status:      approved ? 'approved' : 'denied',
+        reviewed_by: reviewerId,
+        reviewed_at: new Date().toISOString(),
+      }).eq('id', requestId);
     });
   }
 
-  // Send a message (all roles)
-  function sendMessage(fromId, toId, body) {
-    var cleanBody = Sanitize.text(body || '', 'long');
-    if (!cleanBody) return Promise.resolve({ error: 'Message cannot be empty' });
-    if (!fromId || !toId) return Promise.resolve({ error: 'Missing sender or recipient' });
-    return requireSupabase(function() {
+  function sendMessage(fromId, toId, content) {
+    var clean = Sanitize.text(content || '', 'long');
+    if (!clean)   return Promise.resolve({ error: 'Message cannot be empty' });
+    if (!fromId || !toId) return Promise.resolve({ error: 'Missing users' });
+    return q(function(){
       return supabase.from('messages').insert([{
-        from_id: fromId,
-        to_id:   toId,
-        body:    cleanBody,
+        sender_id:   fromId,
+        receiver_id: toId,
+        content:     clean,
       }]);
+    });
+  }
+
+  function approveUser(userId) {
+    return q(function(){
+      return supabase.from('users').update({ is_approved: true }).eq('id', userId);
+    });
+  }
+
+  function denyUser(userId) {
+    return q(function(){
+      return supabase.from('users').delete().eq('id', userId);
+    });
+  }
+
+  function markSessionComplete(sessionId, studentId) {
+    return q(function(){
+      return supabase.from('sessions').update({
+        status: 'completed',
+        student_arrived_on_time: true,
+      }).eq('id', sessionId);
+    }).then(function(r) {
+      if (!r.error) {
+        awardPoints(studentId, 50, 'Attended weekly session');
+        awardPoints(studentId, 10, 'Arrived on time');
+      }
+      return r;
     });
   }
 
   return {
-    getProfile:      getProfile,
-    saveSessionNote: saveSessionNote,
-    awardPoints:     awardPoints,
-    requestReward:   requestReward,
-    resolveReward:   resolveReward,
-    sendMessage:     sendMessage,
+    loadStudentDashboard: loadStudentDashboard,
+    loadTutorDashboard:   loadTutorDashboard,
+    loadParentDashboard:  loadParentDashboard,
+    loadAdminDashboard:   loadAdminDashboard,
+    loadRewards:          loadRewards,
+    loadMessages:         loadMessages,
+    saveSessionNote:      saveSessionNote,
+    awardPoints:          awardPoints,
+    requestReward:        requestReward,
+    resolveReward:        resolveReward,
+    sendMessage:          sendMessage,
+    approveUser:          approveUser,
+    denyUser:             denyUser,
+    markSessionComplete:  markSessionComplete,
   };
 })();
 
-// ------------------------------------
-// INIT
-// ------------------------------------
+/* ---- REALTIME ---- */
+var Realtime = (function() {
+  var channels = [];
+  function subscribeMessages(userId, onMessage) {
+    if (!supabase) return;
+    var ch = supabase.channel('messages-' + userId)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'messages',
+        filter: 'receiver_id=eq.' + userId,
+      }, function(payload) {
+        if (onMessage) onMessage(payload.new);
+      })
+      .subscribe();
+    channels.push(ch);
+  }
+  function unsubscribeAll() {
+    channels.forEach(function(ch) { supabase && supabase.removeChannel(ch); });
+    channels = [];
+  }
+  return { subscribeMessages: subscribeMessages, unsubscribeAll: unsubscribeAll };
+})();
+
+/* ---- INIT ---- */
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initSupabase);
 } else {
