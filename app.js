@@ -210,6 +210,30 @@ function loadPageData(page) {
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
+    'admin-tutors': function() {
+      setLoading(page, true);
+      DB.loadAdminDashboard().then(function(data) {
+        State.liveData[page] = data;
+        setLoading(page, false);
+        if (State.page === page) render();
+      }).catch(function(){ setLoading(page, false); });
+    },
+    'parent-progress': function() {
+      setLoading(page, true);
+      DB.loadParentDashboard(uid).then(function(data) {
+        State.liveData[page] = data;
+        setLoading(page, false);
+        if (State.page === page) render();
+      }).catch(function(){ setLoading(page, false); });
+    },
+    'parent-sessions': function() {
+      setLoading(page, true);
+      DB.loadParentDashboard(uid).then(function(data) {
+        State.liveData[page] = data;
+        setLoading(page, false);
+        if (State.page === page) render();
+      }).catch(function(){ setLoading(page, false); });
+    },
   };
 
   if (loaders[page]) loaders[page]();
@@ -1108,8 +1132,8 @@ function renderParentDashboard() {
 }
 
 function renderParentProgress() {
-  if (isLoading('parent-dashboard')) return renderShell(parentNav(), Spinner(), 'Progress');
-  var d = State.liveData['parent-dashboard'] || {};
+  if (isLoading('parent-progress')) return renderShell(parentNav(), Spinner(), 'Progress');
+  var d = State.liveData['parent-progress'] || {};
   var child = (d.students||[])[0] || {};
   var skills = child.skill_map || [];
   var content = '<div class="page-header"><div><div class="page-title">Progress</div></div></div><div class="card">';
@@ -1125,8 +1149,8 @@ function renderParentProgress() {
 }
 
 function renderParentSessions() {
-  if (isLoading('parent-dashboard')) return renderShell(parentNav(), Spinner(), 'Sessions');
-  var d = State.liveData['parent-dashboard'] || {};
+  if (isLoading('parent-sessions')) return renderShell(parentNav(), Spinner(), 'Sessions');
+  var d = State.liveData['parent-sessions'] || {};
   var child = (d.students||[])[0] || {};
   var sessions = child.sessions || [];
   var content = '<div class="page-header"><div><div class="page-title">Sessions</div></div></div><div class="card">';
@@ -1265,8 +1289,8 @@ function renderAdminStudents() {
 }
 
 function renderAdminTutors() {
-  if (isLoading('admin-students')) return renderShell(adminNav(), Spinner(), 'Tutors');
-  var d     = State.liveData['admin-students'] || {};
+  if (isLoading('admin-tutors')) return renderShell(adminNav(), Spinner(), 'Tutors');
+  var d     = State.liveData['admin-tutors'] || {};
   var users = (d.users||[]).filter(function(u){ return u.role==='tutor'; });
   var content = '<div class="page-header"><div><div class="page-title">Tutors</div><div class="page-sub">'+users.filter(function(u){return u.is_approved;}).length+' active tutors</div></div></div>';
   content += '<div class="card"><div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Joined</th></tr></thead><tbody>';

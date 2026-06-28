@@ -211,13 +211,21 @@ var NukhbaAuth = (function() {
     if (!fullName) { if (onError) onError('Please enter your full name.'); return; }
     if (!role)     { if (onError) onError('Please select your role.'); return; }
     if (!_supabaseClient) { if (onError) onError('Connection unavailable. Please refresh.'); return; }
-    _supabaseClient.auth.signUp({ email: email, password: password })
+    _supabaseClient.auth.signUp({
+      email: email,
+      password: password,
+      options: { data: { full_name: fullName, role: role } },
+    })
       .then(function(result) {
         if (result.error) {
           if (onError) onError('Could not create account. This email may already be in use.');
           return null;
         }
         if (result.data && result.data.user) {
+          // Attempt direct insert as a best-effort fallback.
+          // The primary path is the DB trigger (see supabase-setup.sql).
+          // If email confirmation is required, auth.uid() is null here, so RLS
+          // will block this insert — the trigger covers that case automatically.
           return _supabaseClient.from('users').insert([{
             id:          result.data.user.id,
             email:       email,
@@ -231,7 +239,10 @@ var NukhbaAuth = (function() {
       .then(function(insertResult) {
         if (!insertResult) return;
         if (insertResult && insertResult.error) {
-          console.warn('[Auth] User insert error:', insertResult.error);
+          // Code 23505 = unique_violation: trigger already inserted the row, safe to ignore.
+          if (insertResult.error.code !== '23505') {
+            console.warn('[Auth] User insert error:', insertResult.error);
+          }
         }
         // Show persistent confirmation banner instead of disappearing toast
         var modal = document.getElementById('login-modal');
@@ -254,6 +265,7 @@ var NukhbaAuth = (function() {
   }
 
   function signOut() {
+    Realtime.unsubscribeAll();
     if (_supabaseClient) _supabaseClient.auth.signOut();
     State.user   = null;
     State.page   = 'landing';
@@ -472,7 +484,7 @@ var Realtime = (function() {
     channels.push(ch);
   }
   function unsubscribeAll() {
-    channels.forEach(function(ch) { supabase && _supabaseClient.removeChannel(ch); });
+    channels.forEach(function(ch) { _supabaseClient && _supabaseClient.removeChannel(ch); });
     channels = [];
   }
   return { subscribeMessages: subscribeMessages, unsubscribeAll: unsubscribeAll };
