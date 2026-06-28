@@ -76,6 +76,8 @@ function closeModalById(id) {
 function setUser(role, name, id, needsOnboarding) {
   State.user = { role: role, name: name, id: id || null };
   State.modal = null;
+  var loginModal = document.getElementById('login-modal');
+  if (loginModal) loginModal.remove();
   State.onboarding = { step: 1, data: {} };
   State.liveData = {};
   if (needsOnboarding && role !== 'admin') {
