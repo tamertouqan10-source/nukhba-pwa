@@ -236,6 +236,18 @@ function loadPageData(page) {
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
+    'parent-messages': function() {
+      setLoading(page, true);
+      DB.loadMessages(uid).then(function(msgs) {
+        State.liveData[page] = { messages: msgs };
+        setLoading(page, false);
+        if (State.page === page) render();
+        Realtime.subscribeMessages(uid, function(msg) {
+          State.liveData[page].messages.unshift(msg);
+          if (State.page === page) render();
+        });
+      }).catch(function(){ setLoading(page, false); });
+    },
   };
 
   if (loaders[page]) loaders[page]();
@@ -321,6 +333,19 @@ function StatusBadge(status) {
     'denied':    Badge('Denied','r'),
   };
   return map[status] || Badge(status || '—','gray');
+}
+
+function sessionAttendanceBadge(s) {
+  if (s.status === 'completed') return StatusBadge('completed');
+  if (s.status !== 'upcoming')  return StatusBadge(s.status);
+  if (s.student_joined) {
+    var joinText = 'Joined session' + (s.student_joined_at ? ' · ' + formatTime(s.student_joined_at) : '');
+    return Badge(joinText, 'g');
+  }
+  var now    = Date.now();
+  var sessAt = new Date(s.scheduled_at).getTime();
+  if (now > sessAt + 10 * 60 * 1000) return Badge('Has not joined yet', 'r');
+  return StatusBadge('upcoming');
 }
 
 function Spinner() {
@@ -656,7 +681,10 @@ function onboardingSubmit() {
         learning_style: data.learning_style||null,
         pace_preference: data.pace_preference||null,
         goal_description: Sanitize.text(data.goal_description||'','long'),
-      }]).then(function(r){ if(r.error) console.warn('[Onboarding]',r.error); });
+      }]).then(function(r){
+        if (r.error) console.warn('[Onboarding]',r.error);
+        else runMatchEngine(uid);
+      });
     } else if (role === 'tutor') {
       _supabaseClient.from('tutors').insert([{
         id: uid,
@@ -672,6 +700,57 @@ function onboardingSubmit() {
   toast('Profile saved. Welcome to Nukhba.','success');
   render();
   loadPageData(State.page);
+}
+
+function runMatchEngine(studentId) {
+  if (!_supabaseClient || !studentId) return;
+  var student;
+  _supabaseClient.from('students')
+    .select('subject, learning_style, pace_preference')
+    .eq('id', studentId)
+    .single()
+    .then(function(sr) {
+      if (sr.error || !sr.data) return null;
+      student = sr.data;
+      return _supabaseClient.from('tutors').select('id, subjects, teaching_style, pace');
+    })
+    .then(function(tr) {
+      if (!tr || !student) return null;
+      if (tr.error || !tr.data || !tr.data.length) return null;
+      var scores = tr.data.map(function(t) {
+        var styleScore   = student.learning_style === t.teaching_style ? 100 : 0;
+        var paceScore    = student.pace_preference === t.pace ? 100 : 0;
+        var subjectScore = Array.isArray(t.subjects) && t.subjects.indexOf(student.subject) !== -1 ? 100 : 0;
+        var overall      = Math.round((styleScore + paceScore + subjectScore) / 3);
+        return {
+          student_id:    studentId,
+          tutor_id:      t.id,
+          style_score:   styleScore,
+          pace_score:    paceScore,
+          subject_score: subjectScore,
+          overall_score: overall,
+        };
+      });
+      return _supabaseClient.from('match_scores').upsert(scores, { onConflict: 'student_id,tutor_id' });
+    })
+    .then(function(mr) {
+      if (!mr) return null;
+      if (mr.error) { console.warn('[Match] Upsert error:', mr.error); return null; }
+      return _supabaseClient.from('match_scores')
+        .select('tutor_id, overall_score')
+        .eq('student_id', studentId)
+        .order('overall_score', { ascending: false })
+        .limit(1)
+        .single();
+    })
+    .then(function(best) {
+      if (!best || best.error || !best.data) return;
+      _supabaseClient.from('students')
+        .update({ tutor_id: best.data.tutor_id })
+        .eq('id', studentId)
+        .then(function(r){ if (r.error) console.warn('[Match] tutor_id update error:', r.error); });
+    })
+    .catch(function(e){ console.warn('[Match] Engine error:', e); });
 }
 
 function renderOnboarding() {
@@ -768,7 +847,7 @@ function renderStudentDashboard() {
     content += '<div class="session-body"><div class="session-student">'+esc(s.subject||'Session')+'</div>';
     content += '<div class="session-meta"><i class="ti ti-clock"></i> '+(next.duration_minutes||60)+' min <i class="ti ti-video"></i> Online</div></div>';
     content += '<div class="flex gap-8">';
-    if (next.meeting_link) content += '<a class="btn btn-primary btn-sm" href="'+esc(next.meeting_link)+'" target="_blank" rel="noopener"><i class="ti ti-video"></i> Join</a>';
+    if (next.meeting_link) content += '<button class="btn btn-primary btn-sm" onclick="markAndJoin(\''+next.id+'\',this)" data-url="'+esc(next.meeting_link)+'"><i class="ti ti-video"></i> Join</button>';
     content += '</div></div></div>';
   }
 
@@ -798,7 +877,7 @@ function renderStudentSessions() {
   content += '<div class="card mb-24"><div class="card-title">Upcoming</div>';
   if (upcoming.length) {
     content += upcoming.map(function(s){
-      return '<div class="session-card"><div class="session-time"><div class="session-time-val">'+formatTime(s.scheduled_at)+'</div><div class="session-time-day">'+formatDate(s.scheduled_at)+'</div></div><div class="session-body"><div class="session-student">Session</div><div class="session-meta"><i class="ti ti-clock"></i>'+(s.duration_minutes||60)+' min <i class="ti ti-video"></i> Online</div></div>'+(s.meeting_link?'<a class="btn btn-primary btn-sm" href="'+esc(s.meeting_link)+'" target="_blank" rel="noopener"><i class="ti ti-video"></i> Join</a>':'')+'</div>';
+      return '<div class="session-card"><div class="session-time"><div class="session-time-val">'+formatTime(s.scheduled_at)+'</div><div class="session-time-day">'+formatDate(s.scheduled_at)+'</div></div><div class="session-body"><div class="session-student">Session</div><div class="session-meta"><i class="ti ti-clock"></i>'+(s.duration_minutes||60)+' min <i class="ti ti-video"></i> Online</div></div>'+(s.meeting_link?'<button class="btn btn-primary btn-sm" onclick="markAndJoin(\''+s.id+'\',this)" data-url="'+esc(s.meeting_link)+'"><i class="ti ti-video"></i> Join</button>':'')+'</div>';
     }).join('');
   } else {
     content += EmptyState('ti-calendar','No upcoming sessions scheduled.');
@@ -892,6 +971,13 @@ function redeemReward(rewardId, cost) {
     if (r && r.error) { toast('Could not submit request. Try again.','error'); return; }
     toast('Redemption request sent to your tutor for approval.','success');
   });
+}
+
+function markAndJoin(sessionId, btn) {
+  var url = btn.getAttribute('data-url');
+  if (!url) return;
+  window.open(url, '_blank', 'noopener');
+  DB.markStudentJoined(sessionId).catch(function(){});
 }
 
 function renderStudentMessages() {
@@ -1092,6 +1178,7 @@ function parentNav() {
     {id:'parent-dashboard', icon:'ti-layout-dashboard', label:'Dashboard'},
     {id:'parent-progress',  icon:'ti-chart-line',       label:'Progress'},
     {id:'parent-sessions',  icon:'ti-calendar',         label:'Sessions'},
+    {id:'parent-messages',  icon:'ti-message-2',        label:'Messages'},
   ].map(function(i){
     return '<div class="nav-item'+(State.page===i.id?' active':'')+'" onclick="navigate(\''+i.id+'\')"><i class="ti '+i.icon+'"></i> '+i.label+'</div>';
   }).join('');
@@ -1119,6 +1206,15 @@ function renderParentDashboard() {
   content += '<div class="stat-card"><div class="stat-icon a"><i class="ti ti-star"></i></div><div class="stat-val">'+skills.filter(function(sk){return sk.status==='mastered';}).length+'</div><div class="stat-lbl">Skills mastered</div></div>';
   content += '<div class="stat-card"><div class="stat-icon g"><i class="ti ti-coins"></i></div><div class="stat-val">'+(child.points_balance||0)+'</div><div class="stat-lbl">Points balance</div></div>';
   content += '</div>';
+
+  var upcomingSessions = sessions.filter(function(s){ return s.status === 'upcoming'; });
+  if (upcomingSessions.length) {
+    content += '<div class="card mb-24"><div class="card-title">Upcoming sessions</div>';
+    content += upcomingSessions.map(function(s){
+      return '<div class="session-card"><div class="session-time"><div class="session-time-val">'+formatTime(s.scheduled_at)+'</div><div class="session-time-day">'+formatDate(s.scheduled_at)+'</div></div><div class="session-body"><div class="session-student">'+esc(childName)+'</div><div class="session-meta"><i class="ti ti-clock"></i> '+(s.duration_minutes||60)+' min <i class="ti ti-video"></i> Online</div></div>'+sessionAttendanceBadge(s)+'</div>';
+    }).join('');
+    content += '</div>';
+  }
 
   content += '<div class="card"><div class="card-title">Skill map</div>';
   if (skills.length) {
@@ -1155,16 +1251,36 @@ function renderParentSessions() {
   var d = State.liveData['parent-sessions'] || {};
   var child = (d.students||[])[0] || {};
   var sessions = child.sessions || [];
-  var content = '<div class="page-header"><div><div class="page-title">Sessions</div></div></div><div class="card">';
+  var childName2 = (child.users && child.users.full_name) || 'your child';
+  var content = '<div class="page-header"><div><div class="page-title">Sessions</div><div class="page-sub">All sessions for '+esc(childName2)+'</div></div></div><div class="card">';
   if (sessions.length) {
     content += sessions.map(function(s){
-      return '<div class="session-card"><div class="session-time"><div class="session-time-val">'+formatTime(s.scheduled_at)+'</div><div class="session-time-day">'+formatDate(s.scheduled_at)+'</div></div><div class="session-body"><div class="session-student">Session</div><div class="session-meta">'+  (s.duration_minutes||60)+' min '+StatusBadge(s.status)+'</div></div></div>';
+      return '<div class="session-card"><div class="session-time"><div class="session-time-val">'+formatTime(s.scheduled_at)+'</div><div class="session-time-day">'+formatDate(s.scheduled_at)+'</div></div><div class="session-body"><div class="session-student">'+esc(childName2)+'</div><div class="session-meta"><i class="ti ti-clock"></i> '+(s.duration_minutes||60)+' min</div></div>'+sessionAttendanceBadge(s)+'</div>';
     }).join('');
   } else {
     content += EmptyState('ti-calendar','No sessions scheduled yet.');
   }
   content += '</div>';
   return renderShell(parentNav(), content, 'Sessions');
+}
+
+function renderParentMessages() {
+  if (isLoading('parent-messages')) return renderShell(parentNav(), Spinner(), 'Messages');
+  var d    = State.liveData['parent-messages'] || {};
+  var msgs = d.messages || [];
+  var content = '<div class="page-header"><div><div class="page-title">Messages</div><div class="page-sub">Messages with your child\'s tutor</div></div></div>';
+  if (msgs.length) {
+    content += '<div class="card">';
+    content += msgs.map(function(m){
+      var fromMe = m.sender_id === State.user.id;
+      var name   = fromMe ? 'You' : (m.sender && m.sender.full_name ? esc(m.sender.full_name) : 'Unknown');
+      return '<div style="display:flex;gap:10px;padding:12px 0;border-bottom:1px solid var(--border-2)">'+Avatar(name,'amber',32)+'<div style="flex:1"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><div style="font-size:13px;font-weight:600;color:var(--text-1)">'+name+'</div><div style="font-size:11px;color:var(--text-3)">'+timeAgo(m.created_at)+'</div></div><div style="font-size:13px;color:var(--text-2)">'+esc(m.content)+'</div></div></div>';
+    }).join('');
+    content += '</div>';
+  } else {
+    content += '<div class="card">'+EmptyState('ti-message-2','No messages yet. Your child\'s tutor will reach out with updates.')+'</div>';
+  }
+  return renderShell(parentNav(), content, 'Messages');
 }
 
 /* ============================================
@@ -1342,7 +1458,7 @@ function renderAdminHours() {
   var tutorList = Object.values(byTutor);
   var totalHrs  = tutorList.reduce(function(acc,t){ return acc + t.total; }, 0).toFixed(1);
 
-  var content = '<div class="page-header"><div><div class="page-title">Hour reports</div><div class="page-sub">Volunteer hour tracking for grant reporting</div></div><button class="btn btn-primary" onclick="toast(\'PDF export coming soon.\',\'info\')"><i class="ti ti-download"></i> Export PDF</button></div>';
+  var content = '<div class="page-header"><div><div class="page-title">Hour reports</div><div class="page-sub">Volunteer hour tracking for grant reporting</div></div><button class="btn btn-primary" onclick="exportTutorHoursCSV()"><i class="ti ti-download"></i> Export CSV</button></div>';
   content += '<div class="stat-grid mb-24"><div class="stat-card"><div class="stat-icon g"><i class="ti ti-clock"></i></div><div class="stat-val">'+totalHrs+'h</div><div class="stat-lbl">Total hours</div></div><div class="stat-card"><div class="stat-icon v"><i class="ti ti-user-check"></i></div><div class="stat-val">'+tutorList.length+'</div><div class="stat-lbl">Tutors</div></div></div>';
   content += '<div class="card">';
   if (tutorList.length) {
@@ -1354,6 +1470,30 @@ function renderAdminHours() {
   }
   content += '</div>';
   return renderShell(adminNav(), content, 'Hour Reports');
+}
+
+function exportTutorHoursCSV() {
+  var d   = State.liveData['admin-hours'] || {};
+  var hrs = d.tutorHours || [];
+  if (!hrs.length) { toast('No hours data to export.', 'info'); return; }
+  var rows = [['Tutor Name', 'Date', 'Hours Logged']];
+  hrs.forEach(function(h) {
+    var name = (h.tutors && h.tutors.users && h.tutors.users.full_name) || 'Tutor';
+    rows.push([name, h.session_date || '', h.hours_logged || 0]);
+  });
+  var csv = rows.map(function(r){
+    return r.map(function(c){ return '"' + String(c).replace(/"/g, '""') + '"'; }).join(',');
+  }).join('\n');
+  var blob = new Blob([csv], { type: 'text/csv' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'nukhba-tutor-hours.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Hours exported as CSV.', 'success');
 }
 
 /* ============================================
@@ -1394,6 +1534,7 @@ function render() {
     'parent-dashboard':   renderParentDashboard,
     'parent-progress':    renderParentProgress,
     'parent-sessions':    renderParentSessions,
+    'parent-messages':    renderParentMessages,
     'admin-dashboard':    renderAdminDashboard,
     'admin-students':     renderAdminStudents,
     'admin-tutors':       renderAdminTutors,

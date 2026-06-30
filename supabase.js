@@ -323,7 +323,7 @@ var DB = (function() {
       q(function(){ return _supabaseClient.from('users').select('id, full_name, role, is_approved, created_at').order('created_at', { ascending: false }); }),
       q(function(){ return _supabaseClient.from('sessions').select('*, students(id, users(full_name)), tutors(id, users(full_name))').gte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(20); }),
       q(function(){ return _supabaseClient.from('reward_requests').select('*, students(id, users(full_name), points_balance), rewards(name, cost_points)').eq('status', 'pending').order('created_at', { ascending: false }); }),
-      q(function(){ return _supabaseClient.from('tutor_hours').select('tutor_id, hours_logged, tutors(users(full_name))'); }),
+      q(function(){ return _supabaseClient.from('tutor_hours').select('tutor_id, session_date, hours_logged, tutors(users(full_name))'); }),
     ]).then(function(results) {
       return {
         users:          results[0].data || [],
@@ -442,6 +442,16 @@ var DB = (function() {
     });
   }
 
+  function markStudentJoined(sessionId) {
+    if (!sessionId) return Promise.resolve({ error: 'Missing session ID' });
+    return q(function(){
+      return _supabaseClient.from('sessions').update({
+        student_joined:    true,
+        student_joined_at: new Date().toISOString(),
+      }).eq('id', sessionId);
+    });
+  }
+
   return {
     loadStudentDashboard: loadStudentDashboard,
     loadTutorDashboard:   loadTutorDashboard,
@@ -457,6 +467,7 @@ var DB = (function() {
     approveUser:          approveUser,
     denyUser:             denyUser,
     markSessionComplete:  markSessionComplete,
+    markStudentJoined:    markStudentJoined,
   };
 })();
 
