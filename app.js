@@ -4,12 +4,13 @@
 
 /* ---- STATE ---- */
 const State = {
-  user:       null,
-  page:       'landing',
-  modal:      null,
-  liveData:   {},          // Loaded from Supabase per page
-  loading:    {},          // Per-page loading flags
-  onboarding: { step: 1, data: {} },
+  user:             null,
+  page:             'landing',
+  modal:            null,
+  liveData:         {},   // Loaded from Supabase per page
+  loading:          {},   // Per-page loading flags
+  dataTimestamps:   {},   // { source: timestampMs } for 30-second cache
+  onboarding:       { step: 1, data: {} },
   checklistChecked: new Set(),
 };
 
@@ -78,8 +79,9 @@ function setUser(role, name, id, needsOnboarding) {
   State.modal = null;
   var loginModal = document.getElementById('login-modal');
   if (loginModal) loginModal.remove();
-  State.onboarding = { step: 1, data: {} };
-  State.liveData = {};
+  State.onboarding      = { step: 1, data: {} };
+  State.liveData        = {};
+  State.dataTimestamps  = {};
   if (needsOnboarding && role !== 'admin') {
     State.page = 'onboarding';
   } else {
@@ -97,33 +99,41 @@ function loadPageData(page) {
 
   var loaders = {
     'student-dashboard': function() {
+      if (useCachedIfAvailable(page, 'student')) return;
       setLoading(page, true);
       DB.loadStudentDashboard(uid).then(function(data) {
         State.liveData[page] = data;
+        setCacheTimestamp('student');
         setLoading(page, false);
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
     'student-sessions': function() {
+      if (useCachedIfAvailable(page, 'student')) return;
       setLoading(page, true);
       DB.loadStudentDashboard(uid).then(function(data) {
         State.liveData[page] = data;
+        setCacheTimestamp('student');
         setLoading(page, false);
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
     'student-progress': function() {
+      if (useCachedIfAvailable(page, 'student')) return;
       setLoading(page, true);
       DB.loadStudentDashboard(uid).then(function(data) {
         State.liveData[page] = data;
+        setCacheTimestamp('student');
         setLoading(page, false);
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
     'student-points': function() {
+      if (useCachedIfAvailable(page, 'student')) return;
       setLoading(page, true);
       DB.loadStudentDashboard(uid).then(function(data) {
         State.liveData[page] = data;
+        setCacheTimestamp('student');
         setLoading(page, false);
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
@@ -141,97 +151,121 @@ function loadPageData(page) {
       }).catch(function(){ setLoading(page, false); });
     },
     'tutor-dashboard': function() {
+      if (useCachedIfAvailable(page, 'tutor')) return;
       setLoading(page, true);
       DB.loadTutorDashboard(uid).then(function(data) {
         State.liveData[page] = data;
+        setCacheTimestamp('tutor');
         setLoading(page, false);
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
     'tutor-sessions': function() {
+      if (useCachedIfAvailable(page, 'tutor')) return;
       setLoading(page, true);
       DB.loadTutorDashboard(uid).then(function(data) {
         State.liveData[page] = data;
+        setCacheTimestamp('tutor');
         setLoading(page, false);
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
     'tutor-students': function() {
+      if (useCachedIfAvailable(page, 'tutor')) return;
       setLoading(page, true);
       DB.loadTutorDashboard(uid).then(function(data) {
         State.liveData[page] = data;
+        setCacheTimestamp('tutor');
         setLoading(page, false);
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
     'tutor-hours': function() {
+      if (useCachedIfAvailable(page, 'tutor')) return;
       setLoading(page, true);
       DB.loadTutorDashboard(uid).then(function(data) {
         State.liveData[page] = data;
+        setCacheTimestamp('tutor');
         setLoading(page, false);
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
     'parent-dashboard': function() {
+      if (useCachedIfAvailable(page, 'parent')) return;
       setLoading(page, true);
       DB.loadParentDashboard(uid).then(function(data) {
         State.liveData[page] = data;
+        setCacheTimestamp('parent');
         setLoading(page, false);
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
     'admin-dashboard': function() {
+      if (useCachedIfAvailable(page, 'admin')) return;
       setLoading(page, true);
       DB.loadAdminDashboard().then(function(data) {
         State.liveData[page] = data;
+        setCacheTimestamp('admin');
         setLoading(page, false);
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
     'admin-students': function() {
+      if (useCachedIfAvailable(page, 'admin')) return;
       setLoading(page, true);
       DB.loadAdminDashboard().then(function(data) {
         State.liveData[page] = data;
+        setCacheTimestamp('admin');
         setLoading(page, false);
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
     'admin-approvals': function() {
+      if (useCachedIfAvailable(page, 'admin')) return;
       setLoading(page, true);
       DB.loadAdminDashboard().then(function(data) {
         State.liveData[page] = data;
+        setCacheTimestamp('admin');
         setLoading(page, false);
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
     'admin-hours': function() {
+      if (useCachedIfAvailable(page, 'admin')) return;
       setLoading(page, true);
       DB.loadAdminDashboard().then(function(data) {
         State.liveData[page] = data;
+        setCacheTimestamp('admin');
         setLoading(page, false);
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
     'admin-tutors': function() {
+      if (useCachedIfAvailable(page, 'admin')) return;
       setLoading(page, true);
       DB.loadAdminDashboard().then(function(data) {
         State.liveData[page] = data;
+        setCacheTimestamp('admin');
         setLoading(page, false);
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
     'parent-progress': function() {
+      if (useCachedIfAvailable(page, 'parent')) return;
       setLoading(page, true);
       DB.loadParentDashboard(uid).then(function(data) {
         State.liveData[page] = data;
+        setCacheTimestamp('parent');
         setLoading(page, false);
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
     'parent-sessions': function() {
+      if (useCachedIfAvailable(page, 'parent')) return;
       setLoading(page, true);
       DB.loadParentDashboard(uid).then(function(data) {
         State.liveData[page] = data;
+        setCacheTimestamp('parent');
         setLoading(page, false);
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
@@ -259,6 +293,52 @@ function setLoading(page, val) {
 
 function isLoading(page) {
   return !!State.loading[page];
+}
+
+/* ---- DATA CACHE ---- */
+var CACHE_TTL = 30 * 1000; // 30 seconds
+
+var PAGE_DATA_SOURCE = {
+  'student-dashboard': 'student',
+  'student-sessions':  'student',
+  'student-progress':  'student',
+  'student-points':    'student',
+  'tutor-dashboard':   'tutor',
+  'tutor-sessions':    'tutor',
+  'tutor-students':    'tutor',
+  'tutor-hours':       'tutor',
+  'parent-dashboard':  'parent',
+  'parent-progress':   'parent',
+  'parent-sessions':   'parent',
+  'admin-dashboard':   'admin',
+  'admin-students':    'admin',
+  'admin-approvals':   'admin',
+  'admin-hours':       'admin',
+  'admin-tutors':      'admin',
+};
+
+function isCacheValid(source) {
+  var ts = State.dataTimestamps[source];
+  return !!ts && (Date.now() - ts < CACHE_TTL);
+}
+
+function setCacheTimestamp(source) {
+  State.dataTimestamps[source] = Date.now();
+}
+
+function bustCache(source) {
+  State.dataTimestamps[source] = 0;
+}
+
+function useCachedIfAvailable(page, source) {
+  if (!isCacheValid(source)) return false;
+  var siblings = Object.keys(PAGE_DATA_SOURCE).filter(function(p) {
+    return PAGE_DATA_SOURCE[p] === source && State.liveData[p];
+  });
+  if (!siblings.length) return false;
+  State.liveData[page] = State.liveData[siblings[0]];
+  if (State.page === page) render();
+  return true;
 }
 
 /* ---- TOAST ---- */
@@ -308,6 +388,10 @@ function Badge(text, type) {
   return '<span class="badge badge-' + type + '">' + esc(text) + '</span>';
 }
 
+function PendingBadge() {
+  return '<span class="badge badge-a" style="display:inline-flex;align-items:center;gap:3px"><i class="ti ti-clock-hour-4" style="font-size:11px"></i>Pending</span>';
+}
+
 function ProgressBar(pct, type, height) {
   pct    = Math.min(100, Math.max(0, pct || 0));
   type   = type   || 'accent';
@@ -328,7 +412,7 @@ function StatusBadge(status) {
     'stalled':   Badge('Stalled','r'),
     'confirmed': Badge('Confirmed','g'),
     'at-risk':   Badge('At risk','r'),
-    'pending':   Badge('Pending','a'),
+    'pending':   PendingBadge(),
     'approved':  Badge('Approved','g'),
     'denied':    Badge('Denied','r'),
   };
@@ -1324,7 +1408,7 @@ function renderAdminDashboard() {
   if (pending.length) {
     content += '<div class="card mb-24"><div class="card-title">Pending account approvals</div>';
     content += pending.map(function(u){
-      return '<div class="alert-item" id="pending-'+u.id+'"><div style="flex-shrink:0">'+Avatar(u.full_name,'purple',40)+'</div><div style="flex:1"><div class="alert-title">'+esc(u.full_name)+' — '+esc(u.role)+'</div><div class="alert-body">'+esc(u.email)+' · Applied '+timeAgo(u.created_at)+'</div><div class="alert-actions"><button class="btn btn-success btn-sm" onclick="adminApproveUser(\''+u.id+'\',\'pending-'+u.id+'\')"><i class="ti ti-check"></i> Approve</button><button class="btn btn-danger btn-sm" onclick="adminDenyUser(\''+u.id+'\',\'pending-'+u.id+'\')"><i class="ti ti-x"></i> Decline</button></div></div></div>';
+      return '<div class="alert-item" id="pending-'+u.id+'"><div style="flex-shrink:0">'+Avatar(u.full_name,'purple',40)+'</div><div style="flex:1"><div class="alert-title" style="display:flex;align-items:center;gap:8px">'+esc(u.full_name)+' — '+esc(u.role)+' '+PendingBadge()+'</div><div class="alert-body">'+esc(u.email)+' · Applied '+timeAgo(u.created_at)+'</div><div class="alert-actions"><button class="btn btn-success btn-sm" onclick="adminApproveUser(\''+u.id+'\',\'pending-'+u.id+'\')"><i class="ti ti-check"></i> Approve</button><button class="btn btn-danger btn-sm" onclick="adminDenyUser(\''+u.id+'\',\'pending-'+u.id+'\')"><i class="ti ti-x"></i> Decline</button></div></div></div>';
     }).join('');
     content += '</div>';
   }
@@ -1364,7 +1448,7 @@ function adminApproveUser(userId, elId) {
     var el = document.getElementById(elId);
     if (el) el.remove();
     toast('Account approved.','success');
-    // Refresh admin data
+    bustCache('admin');
     loadPageData('admin-dashboard');
   });
 }
@@ -1376,6 +1460,8 @@ function adminDenyUser(userId, elId) {
     var el = document.getElementById(elId);
     if (el) el.remove();
     toast('Account declined.','info');
+    bustCache('admin');
+    loadPageData('admin-dashboard');
   });
 }
 
@@ -1384,6 +1470,7 @@ function adminResolveReward(requestId, approved) {
   DB.resolveReward(requestId, approved, uid).then(function(r) {
     if (r && r.error) { toast('Error updating request.','error'); return; }
     toast(approved ? 'Reward approved.' : 'Reward denied.', approved ? 'success' : 'info');
+    bustCache('admin');
     loadPageData('admin-dashboard');
     loadPageData('admin-approvals');
   });
@@ -1397,7 +1484,7 @@ function renderAdminStudents() {
   content += '<div class="card"><div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Joined</th></tr></thead><tbody>';
   if (users.length) {
     content += users.map(function(u){
-      return '<tr><td class="table-name">'+Avatar(u.full_name,'purple',30)+'<div><div style="font-size:13px;font-weight:600">'+esc(u.full_name)+'</div></div></td><td style="font-size:12px;color:var(--text-2)">'+esc(u.email)+'</td><td>'+(u.is_approved?Badge('Active','g'):Badge('Pending','a'))+'</td><td style="font-size:12px;color:var(--text-3)">'+formatDate(u.created_at)+'</td></tr>';
+      return '<tr><td class="table-name">'+Avatar(u.full_name,'purple',30)+'<div><div style="font-size:13px;font-weight:600">'+esc(u.full_name)+'</div></div></td><td style="font-size:12px;color:var(--text-2)">'+esc(u.email)+'</td><td>'+(u.is_approved?Badge('Active','g'):PendingBadge())+'</td><td style="font-size:12px;color:var(--text-3)">'+formatDate(u.created_at)+'</td></tr>';
     }).join('');
   } else {
     content += '<tr><td colspan="4" style="text-align:center;color:var(--text-3);padding:32px">No students yet.</td></tr>';
@@ -1414,7 +1501,7 @@ function renderAdminTutors() {
   content += '<div class="card"><div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Joined</th></tr></thead><tbody>';
   if (users.length) {
     content += users.map(function(u){
-      return '<tr><td class="table-name">'+Avatar(u.full_name,'green',30)+'<div><div style="font-size:13px;font-weight:600">'+esc(u.full_name)+'</div></div></td><td style="font-size:12px;color:var(--text-2)">'+esc(u.email)+'</td><td>'+(u.is_approved?Badge('Active','g'):Badge('Pending','a'))+'</td><td style="font-size:12px;color:var(--text-3)">'+formatDate(u.created_at)+'</td></tr>';
+      return '<tr><td class="table-name">'+Avatar(u.full_name,'green',30)+'<div><div style="font-size:13px;font-weight:600">'+esc(u.full_name)+'</div></div></td><td style="font-size:12px;color:var(--text-2)">'+esc(u.email)+'</td><td>'+(u.is_approved?Badge('Active','g'):PendingBadge())+'</td><td style="font-size:12px;color:var(--text-3)">'+formatDate(u.created_at)+'</td></tr>';
     }).join('');
   } else {
     content += '<tr><td colspan="4" style="text-align:center;color:var(--text-3);padding:32px">No tutors yet.</td></tr>';

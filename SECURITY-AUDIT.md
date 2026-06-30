@@ -120,6 +120,7 @@ Added via `vercel.json` (applied at CDN level on every response):
 
 | Priority | Issue | Recommendation |
 |----------|-------|----------------|
+| **CRITICAL** | `SUPABASE_SERVICE_ROLE_KEY` must be set as a Vercel environment variable before `DB.denyUser` can fully delete auth users | In the Vercel dashboard → Project Settings → Environment Variables, add `SUPABASE_SERVICE_ROLE_KEY` (obtain from Supabase dashboard → Project Settings → API → service_role key). Also add `SUPABASE_URL` if not already set. **Never commit this key to Git.** The `/api/delete-user.js` serverless function reads it via `process.env.SUPABASE_SERVICE_ROLE_KEY` at runtime only. |
 | High | Demo portal buttons allow anyone to enter any portal without credentials | Remove demo buttons from production or protect with an admin-only toggle |
 | High | RLS policies not verified in this audit | Verify in Supabase dashboard that students can only read their own rows, tutors only their assigned students, and admins all rows |
 | High | Claude API key (Step 6) must never go in frontend | Use a Vercel serverless function (`/api/generate-note.js`) as a proxy |
@@ -128,3 +129,11 @@ Added via `vercel.json` (applied at CDN level on every response):
 | Low | `console.log` statements in production | Replace with a proper logger that suppresses in production |
 | Low | No `autocomplete="off"` on admin-only fields | Add to sensitive admin inputs |
 | Low | Support email (`support@nukhba.org`) is a placeholder | Register and configure this email before launch |
+
+---
+
+## 11. Serverless Function Security
+
+| Function | Key Used | Notes |
+|----------|----------|-------|
+| `/api/delete-user.js` | `SUPABASE_SERVICE_ROLE_KEY` | Validates UUID format before calling `auth.admin.deleteUser`. Returns 500 if env var is missing rather than silently failing. Falls back to DB-only delete on client side if the endpoint is unreachable. |

@@ -259,10 +259,11 @@ var NukhbaAuth = (function() {
   function signOut() {
     Realtime.unsubscribeAll();
     if (_supabaseClient) _supabaseClient.auth.signOut();
-    State.user   = null;
-    State.page   = 'landing';
-    State.modal  = null;
-    State.liveData = {};
+    State.user            = null;
+    State.page            = 'landing';
+    State.modal           = null;
+    State.liveData        = {};
+    State.dataTimestamps  = {};
     render();
   }
 
@@ -422,9 +423,25 @@ var DB = (function() {
   }
 
   function denyUser(userId) {
-    return q(function(){
-      return _supabaseClient.from('users').delete().eq('id', userId);
-    });
+    if (!userId) return Promise.resolve({ error: 'Missing user ID' });
+    return fetch('/api/delete-user', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ userId: userId }),
+    })
+      .then(function(res) { return res.json(); })
+      .then(function(json) {
+        if (json && json.error) console.warn('[Auth] delete-user API:', json.error);
+        return q(function(){
+          return _supabaseClient.from('users').delete().eq('id', userId);
+        });
+      })
+      .catch(function(err) {
+        console.warn('[Auth] delete-user fetch failed, falling back to DB-only delete:', err);
+        return q(function(){
+          return _supabaseClient.from('users').delete().eq('id', userId);
+        });
+      });
   }
 
   function markSessionComplete(sessionId, studentId) {
