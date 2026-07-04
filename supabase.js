@@ -156,8 +156,7 @@ var NukhbaAuth = (function() {
               setUser(data.role, data.full_name, data.id, !hasProfile || !newQuizDone);
             });
         } else {
-          setUser(data.role, data.full_name, data.id,
-            data.role === 'parent' ? true : false);
+          setUser(data.role, data.full_name, data.id, false);
         }
       });
   }
@@ -308,7 +307,7 @@ var DB = (function() {
     return Promise.all([
       q(function(){ return _supabaseClient.from('tutors').select('*, users(full_name)').eq('id', userId).single(); }),
       q(function(){ return _supabaseClient.from('students').select('*, users(full_name), sessions(count)').eq('tutor_id', userId); }),
-      q(function(){ return _supabaseClient.from('sessions').select('*').eq('tutor_id', userId).order('scheduled_at', { ascending: false }).limit(20); }),
+      q(function(){ return _supabaseClient.from('sessions').select('*, students(users(full_name))').eq('tutor_id', userId).order('scheduled_at', { ascending: false }).limit(20); }),
       q(function(){ return _supabaseClient.from('tutor_hours').select('*').eq('tutor_id', userId).order('session_date', { ascending: false }); }),
     ]).then(function(results) {
       return {
@@ -495,11 +494,15 @@ var DB = (function() {
   }
 
   function loadTutorCalendar(userId) {
-    var today = new Date().toISOString().split('T')[0];
+    var rangeStart = new Date();
+    rangeStart.setMonth(rangeStart.getMonth() - 1);
+    rangeStart.setDate(1);
+    var startIso  = rangeStart.toISOString();
+    var startDate = startIso.split('T')[0];
     return Promise.all([
       q(function(){ return _supabaseClient.from('students').select('id, users(full_name)').eq('tutor_id', userId); }),
-      q(function(){ return _supabaseClient.from('sessions').select('*, students(users(full_name))').eq('tutor_id', userId).gte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(30); }),
-      q(function(){ return _supabaseClient.from('homework').select('id, title, due_date, status, students(users(full_name))').eq('tutor_id', userId).gte('due_date', today).eq('status', 'pending').order('due_date').limit(20); }),
+      q(function(){ return _supabaseClient.from('sessions').select('*, students(users(full_name))').eq('tutor_id', userId).gte('scheduled_at', startIso).order('scheduled_at').limit(100); }),
+      q(function(){ return _supabaseClient.from('homework').select('id, title, due_date, status, students(users(full_name))').eq('tutor_id', userId).gte('due_date', startDate).order('due_date').limit(50); }),
     ]).then(function(results) {
       return {
         students: results[0].data || [],
@@ -715,6 +718,46 @@ var DB = (function() {
     });
   }
 
+  function loadStudentCalendar(userId) {
+    var rangeStart = new Date();
+    rangeStart.setMonth(rangeStart.getMonth() - 1);
+    rangeStart.setDate(1);
+    var startIso  = rangeStart.toISOString();
+    var startDate = startIso.split('T')[0];
+    return Promise.all([
+      q(function(){ return _supabaseClient.from('sessions').select('*').eq('student_id', userId).gte('scheduled_at', startIso).order('scheduled_at').limit(100); }),
+      q(function(){ return _supabaseClient.from('homework').select('*, tutors(users(full_name))').eq('student_id', userId).gte('due_date', startDate).order('due_date').limit(50); }),
+    ]).then(function(results) {
+      return {
+        sessions: results[0].data || [],
+        homework: results[1].data || [],
+      };
+    });
+  }
+
+  function getStudentTutorId(studentId) {
+    return q(function(){
+      return _supabaseClient.from('students').select('tutor_id').eq('id', studentId).single();
+    }).then(function(r) { return (r.data && r.data.tutor_id) || null; });
+  }
+
+  function loadTutorRecipients(tutorId) {
+    return q(function(){
+      return _supabaseClient.from('students')
+        .select('id, parent_id, users(full_name)')
+        .eq('tutor_id', tutorId);
+    }).then(function(r) {
+      var students = r.data || [];
+      var parentIds = students.map(function(s){ return s.parent_id; }).filter(Boolean);
+      if (!parentIds.length) return { students: students, parents: [] };
+      return q(function(){
+        return _supabaseClient.from('users').select('id, full_name').in('id', parentIds);
+      }).then(function(pr) {
+        return { students: students, parents: pr.data || [] };
+      });
+    });
+  }
+
   return {
     loadStudentDashboard: loadStudentDashboard,
     loadTutorDashboard:   loadTutorDashboard,
@@ -746,40 +789,37 @@ var DB = (function() {
     loadStudentHomework:        loadStudentHomework,
     submitStudentHomework:      submitStudentHomework,
     toggleAcceptingStudents:    toggleAcceptingStudents,
+    loadStudentCalendar:        loadStudentCalendar,
+    getStudentTutorId:          getStudentTutorId,
+    loadTutorRecipients:        loadTutorRecipients,
   };
 })();
 
 /* ---- REALTIME ---- */
 var Realtime = (function() {
-  var channels = [];
-  function subscribeMessages(userId, onMessage) {
+  var channels = {};
+  function subscribe(key, table, filterCol, userId, cb) {
     if (!_supabaseClient) return;
-    var ch = _supabaseClient.channel('messages-' + userId)
+    var k = key + '-' + userId;
+    if (channels[k]) return; // already subscribed
+    channels[k] = _supabaseClient.channel(k)
       .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'messages',
-        filter: 'receiver_id=eq.' + userId,
-      }, function(payload) {
-        if (onMessage) onMessage(payload.new);
-      })
+        event: 'INSERT', schema: 'public', table: table,
+        filter: filterCol + '=eq.' + userId,
+      }, function(payload) { if (cb) cb(payload.new); })
       .subscribe();
-    channels.push(ch);
+  }
+  function subscribeMessages(userId, onMessage) {
+    subscribe('messages', 'messages', 'receiver_id', userId, onMessage);
   }
   function subscribeNotifications(userId, onNotification) {
-    if (!_supabaseClient) return;
-    var ch = _supabaseClient.channel('notifications-' + userId)
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'notifications',
-        filter: 'user_id=eq.' + userId,
-      }, function(payload) {
-        if (onNotification) onNotification(payload.new);
-      })
-      .subscribe();
-    channels.push(ch);
+    subscribe('notifications', 'notifications', 'user_id', userId, onNotification);
   }
-
   function unsubscribeAll() {
-    channels.forEach(function(ch) { _supabaseClient && _supabaseClient.removeChannel(ch); });
-    channels = [];
+    Object.keys(channels).forEach(function(k) {
+      _supabaseClient && _supabaseClient.removeChannel(channels[k]);
+    });
+    channels = {};
   }
   return { subscribeMessages: subscribeMessages, subscribeNotifications: subscribeNotifications, unsubscribeAll: unsubscribeAll };
 })();

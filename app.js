@@ -11,6 +11,7 @@ const State = {
   loading:          {},   // Per-page loading flags
   dataTimestamps:   {},   // { source: timestampMs } for 30-second cache
   notifications:    [],   // In-app notifications for current user
+  gated:            false,
   onboarding:       { step: 1, data: {} },
   checklistChecked: new Set(),
   calState:         {},   // { [calKey]: { y, m } } for month calendar navigation
@@ -56,6 +57,10 @@ function formatTime(iso) {
 /* ---- ROUTER ---- */
 function navigate(page) {
   if (State.page === 'onboarding') return;
+  if (State.gated && State.user && State.user.role === 'student' && page !== 'student-matches') {
+    toast('Apply to at least one tutor to unlock the rest of your portal.', 'info');
+    return;
+  }
   State.page = page;
   render();
   loadPageData(page);
@@ -101,6 +106,7 @@ function setUser(role, name, id, needsOnboarding) {
   render();
   if (!needsOnboarding) loadPageData(State.page);
   loadNotifications();
+  if (role === 'student' && !needsOnboarding) checkStudentGate();
 }
 
 /* ---- DATA LOADER ---- */
@@ -152,15 +158,17 @@ function loadPageData(page) {
     },
     'student-messages': function() {
       setLoading(page, true);
-      DB.loadMessages(uid).then(function(msgs) {
-        State.liveData[page] = { messages: msgs };
-        setLoading(page, false);
-        if (State.page === page) render();
-        Realtime.subscribeMessages(uid, function(msg) {
-          State.liveData[page].messages.unshift(msg);
+      Promise.all([DB.loadMessages(uid), DB.getStudentTutorId(uid)])
+        .then(function(results) {
+          State.liveData[page] = { messages: results[0], tutorId: results[1] };
+          setLoading(page, false);
           if (State.page === page) render();
-        });
-      }).catch(function(){ setLoading(page, false); });
+          Realtime.subscribeMessages(uid, function(msg) {
+            var d = State.liveData['student-messages'];
+            if (d && d.messages) d.messages.unshift(msg);
+            if (State.page === 'student-messages') render();
+          });
+        }).catch(function(){ setLoading(page, false); });
     },
     'tutor-dashboard': function() {
       if (useCachedIfAvailable(page, 'tutor')) return;
@@ -274,13 +282,18 @@ function loadPageData(page) {
     },
     'parent-messages': function() {
       setLoading(page, true);
-      DB.loadMessages(uid).then(function(msgs) {
-        State.liveData[page] = { messages: msgs };
+      Promise.all([
+        DB.loadMessages(uid),
+        DB.loadParentDashboard(uid),
+      ]).then(function(results) {
+        var child = (results[1].students || [])[0] || {};
+        State.liveData[page] = { messages: results[0], tutorId: child.tutor_id || null };
         setLoading(page, false);
         if (State.page === page) render();
         Realtime.subscribeMessages(uid, function(msg) {
-          State.liveData[page].messages.unshift(msg);
-          if (State.page === page) render();
+          var d = State.liveData['parent-messages'];
+          if (d && d.messages) d.messages.unshift(msg);
+          if (State.page === 'parent-messages') render();
         });
       }).catch(function(){ setLoading(page, false); });
     },
@@ -302,36 +315,29 @@ function loadPageData(page) {
     },
     'tutor-messages': function() {
       setLoading(page, true);
-      DB.loadMessages(uid).then(function(msgs) {
-        State.liveData[page] = { messages: msgs };
-        setLoading(page, false);
-        if (State.page === page) render();
-        Realtime.subscribeMessages(uid, function(msg) {
-          State.liveData[page].messages.unshift(msg);
-          if (State.page === page) render();
-        });
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'student-calendar': function() {
-      setLoading(page, true);
-      var cached = State.liveData['student-sessions'] || State.liveData['student-dashboard'];
-      var sessPromise = (cached && cached.sessions)
-        ? Promise.resolve(cached)
-        : DB.loadStudentDashboard(uid).then(function(data) {
-            State.liveData['student-dashboard'] = data;
-            State.liveData['student-sessions']  = data;
-            setCacheTimestamp('student');
-            return data;
-          });
-      Promise.all([sessPromise, DB.loadStudentHomework(uid)])
+      Promise.all([DB.loadMessages(uid), DB.loadTutorRecipients(uid)])
         .then(function(results) {
           State.liveData[page] = {
-            sessions: (results[0] && results[0].sessions) || [],
-            homework: results[1] || [],
+            messages: results[0],
+            students: results[1].students || [],
+            parents:  results[1].parents  || [],
           };
           setLoading(page, false);
           if (State.page === page) render();
+          Realtime.subscribeMessages(uid, function(msg) {
+            var d = State.liveData['tutor-messages'];
+            if (d && d.messages) d.messages.unshift(msg);
+            if (State.page === 'tutor-messages') render();
+          });
         }).catch(function(){ setLoading(page, false); });
+    },
+    'student-calendar': function() {
+      setLoading(page, true);
+      DB.loadStudentCalendar(uid).then(function(data) {
+        State.liveData[page] = data;
+        setLoading(page, false);
+        if (State.page === page) render();
+      }).catch(function(){ setLoading(page, false); });
     },
     'student-homework': function() {
       setLoading(page, true);
@@ -351,6 +357,14 @@ function loadPageData(page) {
         setLoading(page, false);
         if (State.page === page) render();
         runMatchEngine(uid); // background analytics upsert
+      }).catch(function(){ setLoading(page, false); });
+    },
+    'tutor-notes': function() {
+      setLoading(page, true);
+      DB.loadTutorDashboard(uid).then(function(data) {
+        State.liveData[page] = data;
+        setLoading(page, false);
+        if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
     'tutor-requests': function() {
@@ -419,6 +433,28 @@ function useCachedIfAvailable(page, source) {
   return true;
 }
 
+/* ---- STUDENT GATE ---- */
+function checkStudentGate() {
+  var uid = State.user && State.user.id;
+  if (!uid || State.user.role !== 'student') { State.gated = false; return; }
+  Promise.all([
+    _supabaseClient.from('students').select('tutor_id').eq('id', uid).single(),
+    _supabaseClient.from('match_requests').select('id', { count: 'exact', head: true }).eq('student_id', uid),
+  ]).then(function(results) {
+    var hasTutor   = !!(results[0].data && results[0].data.tutor_id);
+    var hasRequest = (results[1].count || 0) > 0;
+    var wasGated   = State.gated;
+    State.gated = !hasTutor && !hasRequest;
+    if (State.gated && State.page !== 'onboarding') {
+      State.page = 'student-matches';
+      render();
+      loadPageData('student-matches');
+    } else if (wasGated !== State.gated) {
+      render();
+    }
+  }).catch(function(){});
+}
+
 /* ---- NOTIFICATIONS ---- */
 function loadNotifications() {
   var uid = State.user && State.user.id;
@@ -440,8 +476,8 @@ function toggleNotificationsDropdown() {
     return type.indexOf('session') > -1 ? 'ti-calendar' : 'ti-books';
   };
 
-  var html = '<div id="notif-dropdown" style="position:fixed;top:56px;right:16px;width:320px;max-height:400px;overflow-y:auto;background:var(--surface-1);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:0 8px 32px rgba(0,0,0,0.12);z-index:2000">';
-  html += '<div style="padding:14px 16px 10px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface-1)">';
+  var html = '<div id="notif-dropdown" style="position:fixed;top:56px;right:16px;width:320px;max-height:400px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:0 8px 32px rgba(0,0,0,0.12);z-index:2000">';
+  html += '<div style="padding:14px 16px 10px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface)">';
   html += '<div style="font-size:14px;font-weight:600;color:var(--text-1)">Notifications</div>';
   if (hasUnread) {
     html += '<button class="btn btn-ghost" style="font-size:12px;padding:4px 8px" onclick="markAllNotificationsRead()">Mark all read</button>';
@@ -628,13 +664,45 @@ function calDayClick(key, dateStr) {
     html += '<div style="width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0;background:'+(e.type==='session'?'var(--teal)':'var(--amber)')+'"></div>';
     html += '<div style="flex:1"><div style="font-size:13px;font-weight:500;color:var(--text-1)">'+esc(e.label)+'</div>';
     if (e.time) html += '<div style="font-size:11px;color:var(--text-3);margin-top:2px">'+esc(e.time)+'</div>';
-    if (e.link) html += '<a class="btn btn-primary btn-sm" href="'+esc(e.link)+'" target="_blank" rel="noopener" style="display:inline-flex;margin-top:6px"><i class="ti ti-video"></i> Join session</a>';
+    if (e.link) {
+      html += '<div style="display:flex;gap:6px;margin-top:6px">';
+      html += '<a class="btn btn-primary btn-sm" href="'+esc(e.link)+'" target="_blank" rel="noopener" style="display:inline-flex"><i class="ti ti-video"></i> Join session</a>';
+      html += '<button class="btn btn-secondary btn-sm" onclick="copySessionLink(this)" data-link="'+esc(e.link)+'"><i class="ti ti-copy"></i> Copy link</button>';
+      html += '</div>';
+    }
     html += '</div></div>';
   });
   html += '</div>';
 
   var calWrap = document.querySelector('.cal-container');
   if (calWrap) calWrap.insertAdjacentHTML('afterend', html);
+}
+
+function copySessionLink(btn) {
+  var link = btn.getAttribute('data-link');
+  if (!link) { toast('No link to copy.','error'); return; }
+  function fallback() {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = link;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (ok) toast('Link copied.','success');
+      else toast('Could not copy link.','error');
+    } catch(e) { toast('Could not copy link.','error'); }
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link)
+      .then(function(){ toast('Link copied.','success'); })
+      .catch(fallback);
+  } else {
+    fallback();
+  }
 }
 
 function buildMonthGrid(events, calKey) {
@@ -1026,9 +1094,6 @@ var ONBOARDING_STEPS = {
     { id:'bio',             title:'Tell students about yourself',             sub:'A short bio helps students and parents feel confident before the first session.',                                      type:'text',         placeholder:'e.g. I am a mathematics graduate with 3 years of tutoring experience...' },
     { id:'teacher_reference',title:'Do you have a teacher reference?',        sub:'Optional — a short recommendation from a teacher or mentor. Shown on your profile to students.',                      type:'text_optional',placeholder:'e.g. "Highly recommended by Dr. Smith for exceptional ability in mathematics." — leave blank to skip' },
   ],
-  parent: [
-    { id:'child_name', title:"What is your child's name?", sub:'We will use this to personalise your dashboard and progress reports.', type:'text', placeholder:'e.g. Lena' },
-  ],
 };
 
 function onboardingTotalSteps() {
@@ -1127,6 +1192,7 @@ function onboardingSubmit() {
     }
   }
   State.user.onboarded = true;
+  if (role === 'student') State.gated = true;
   State.page = role === 'student' ? 'student-matches' : role + '-dashboard';
   toast('Profile saved. Welcome to Nukhba.', 'success');
   render();
@@ -1170,21 +1236,8 @@ function runMatchEngine(studentId) {
       return _supabaseClient.from('match_scores').upsert(scores, { onConflict: 'student_id,tutor_id' });
     })
     .then(function(mr) {
-      if (!mr) return null;
-      if (mr.error) { console.warn('[Match] Upsert error:', mr.error); return null; }
-      return _supabaseClient.from('match_scores')
-        .select('tutor_id, overall_score')
-        .eq('student_id', studentId)
-        .order('overall_score', { ascending: false })
-        .limit(1)
-        .single();
-    })
-    .then(function(best) {
-      if (!best || best.error || !best.data) return;
-      _supabaseClient.from('students')
-        .update({ tutor_id: best.data.tutor_id })
-        .eq('id', studentId)
-        .then(function(r){ if (r.error) console.warn('[Match] tutor_id update error:', r.error); });
+      if (mr && mr.error) console.warn('[Match] Upsert error:', mr.error);
+      return null;
     })
     .catch(function(e){ console.warn('[Match] Engine error:', e); });
 }
@@ -1238,7 +1291,7 @@ function renderOnboarding() {
    STUDENT PORTAL
    ============================================ */
 function studentNav() {
-  return [
+  var items = [
     {id:'student-dashboard', icon:'ti-layout-dashboard', label:'Dashboard'},
     {id:'student-sessions',  icon:'ti-calendar-check',   label:'My sessions'},
     {id:'student-calendar',  icon:'ti-calendar',          label:'Calendar'},
@@ -1247,9 +1300,18 @@ function studentNav() {
     {id:'student-progress',  icon:'ti-chart-line',        label:'Progress'},
     {id:'student-points',    icon:'ti-coins',             label:'Points & rewards'},
     {id:'student-messages',  icon:'ti-message-2',         label:'Messages'},
-  ].map(function(i){
+  ];
+  var html = items.map(function(i){
+    var locked = State.gated && i.id !== 'student-matches';
+    if (locked) {
+      return '<div class="nav-item" style="opacity:0.4;cursor:not-allowed"><i class="ti '+i.icon+'"></i> '+i.label+' <i class="ti ti-lock" style="margin-left:auto;font-size:13px"></i></div>';
+    }
     return '<div class="nav-item'+(State.page===i.id?' active':'')+'" onclick="navigate(\''+i.id+'\')"><i class="ti '+i.icon+'"></i> '+i.label+'</div>';
   }).join('');
+  if (State.gated) {
+    html += '<div style="margin:10px 8px 0;padding:10px 12px;background:var(--amber-soft);border-radius:var(--r-md);font-size:11px;color:var(--amber);line-height:1.5"><i class="ti ti-lock" style="font-size:12px"></i> Apply to a tutor to unlock your portal</div>';
+  }
+  return html;
 }
 
 function renderStudentDashboard() {
@@ -1277,8 +1339,8 @@ function renderStudentDashboard() {
   content += '<div class="flex items-center gap-12 mb-8"><div style="font-family:var(--font-display);font-size:36px;font-weight:800;color:var(--amber)">'+streak+'</div><div><div style="font-size:14px;font-weight:600;color:var(--text-1)">Week streak</div></div></div></div>';
 
   content += '<div class="card"><div class="card-title">This semester</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
-  content += '<div style="padding:12px;background:var(--surface-2);border-radius:var(--radius-md);text-align:center"><div style="font-family:var(--font-display);font-size:24px;font-weight:700;color:var(--text-1)">'+sessions.filter(function(s){return s.status==='completed';}).length+'</div><div class="text-xs text-3">Sessions done</div></div>';
-  content += '<div style="padding:12px;background:var(--surface-2);border-radius:var(--radius-md);text-align:center"><div style="font-family:var(--font-display);font-size:24px;font-weight:700;color:var(--teal)">'+skills.filter(function(sk){return sk.status==='mastered';}).length+'</div><div class="text-xs text-3">Skills mastered</div></div>';
+  content += '<div style="padding:12px;background:var(--surface-2);border-radius:var(--r-md);text-align:center"><div style="font-family:var(--font-display);font-size:24px;font-weight:700;color:var(--text-1)">'+sessions.filter(function(s){return s.status==='completed';}).length+'</div><div class="text-xs text-3">Sessions done</div></div>';
+  content += '<div style="padding:12px;background:var(--surface-2);border-radius:var(--r-md);text-align:center"><div style="font-family:var(--font-display);font-size:24px;font-weight:700;color:var(--teal)">'+skills.filter(function(sk){return sk.status==='mastered';}).length+'</div><div class="text-xs text-3">Skills mastered</div></div>';
   content += '</div></div></div>';
 
   // Next session
@@ -1439,9 +1501,7 @@ function renderStudentMessages() {
   if (isLoading('student-messages')) return renderShell(studentNav(), Spinner(), 'Messages');
   var d       = State.liveData['student-messages'] || {};
   var msgs    = d.messages || [];
-  var sData   = State.liveData['student-dashboard'] || State.liveData['student-sessions'] || {};
-  var student = (sData && sData.student) || {};
-  var tutorId = student.tutor_id || null;
+  var tutorId = d.tutorId || null;
 
   var content = '<div class="page-header"><div><div class="page-title">Messages</div><div class="page-sub">All conversations are logged for safety</div></div></div>';
   content += '<div class="card" style="display:flex;flex-direction:column">';
@@ -1574,7 +1634,9 @@ function sendMatchRequest(studentId, tutorId) {
   DB.sendMatchRequest(studentId, tutorId).then(function(r) {
     if (r && r.error) { toast('Could not send request. Try again.','error'); return; }
     toast('Match request sent!','success');
+    if (State.gated) { State.gated = false; }
     loadPageData('student-matches');
+    render();
   }).catch(function(){ toast('Could not send request. Try again.','error'); });
 }
 
@@ -1589,6 +1651,10 @@ function renderStudentMatches() {
   requests.forEach(function(r){ reqMap[r.tutor_id] = r; });
 
   var content = '<div class="page-header"><div><div class="page-title">Recommended tutors</div><div class="page-sub">Matched to your learning profile — send a request to express interest</div></div></div>';
+
+  if (State.gated) {
+    content += '<div class="alert-item warn mb-16"><i class="ti ti-lock alert-icon" style="color:var(--amber)"></i><div><div class="alert-title">Choose at least one tutor to apply to</div><div class="alert-body">You can request more than one — your portal unlocks as soon as you send your first request.</div></div></div>';
+  }
 
   if (!matches.length) {
     content += '<div class="card">'+EmptyState('ti-star','No tutor matches yet. Your profile may still be in the matching queue — check back shortly.')+'</div>';
@@ -1881,8 +1947,8 @@ function renderTutorMessages() {
   if (isLoading('tutor-messages')) return renderShell(tutorNav(), Spinner(), 'Messages');
   var d        = State.liveData['tutor-messages'] || {};
   var msgs     = d.messages || [];
-  var tutorData = State.liveData['tutor-dashboard'] || State.liveData['tutor-students'] || {};
-  var students  = tutorData.students || [];
+  var students = d.students || [];
+  var parents  = d.parents  || [];
 
   var content = '<div class="page-header"><div><div class="page-title">Messages</div><div class="page-sub">Conversations with students</div></div></div>';
   content += '<div class="card" style="display:flex;flex-direction:column">';
@@ -1902,20 +1968,20 @@ function renderTutorMessages() {
     content += EmptyState('ti-message-2','No messages yet. Send a message to one of your students below.');
   }
   content += '</div>';
-  if (students.length) {
-    var firstId = students[0].id || '';
-    content += '<div id="msg-compose" data-to="'+esc(firstId)+'" style="padding-top:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px">';
-    if (students.length > 1) {
-      content += '<select class="select" style="font-size:13px" onchange="document.getElementById(\'msg-compose\').setAttribute(\'data-to\',this.value)">';
-      content += students.map(function(s){
-        var n = (s.users && s.users.full_name) || 'Student';
-        return '<option value="'+esc(s.id)+'">'+esc(n)+'</option>';
-      }).join('');
-      content += '</select>';
-    } else {
-      var sName = (students[0].users && students[0].users.full_name) || 'your student';
-      content += '<div style="font-size:12px;color:var(--text-3)">Messaging: '+esc(sName)+'</div>';
-    }
+  var recipients = [];
+  students.forEach(function(s){
+    recipients.push({ id: s.id, label: ((s.users && s.users.full_name) || 'Student') + ' (student)' });
+  });
+  parents.forEach(function(p){
+    recipients.push({ id: p.id, label: (p.full_name || 'Parent') + ' (parent)' });
+  });
+  if (recipients.length) {
+    content += '<div id="msg-compose" data-to="'+esc(recipients[0].id)+'" style="padding-top:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px">';
+    content += '<select class="select" style="font-size:13px" onchange="document.getElementById(\'msg-compose\').setAttribute(\'data-to\',this.value)">';
+    content += recipients.map(function(rc){
+      return '<option value="'+esc(rc.id)+'">'+esc(rc.label)+'</option>';
+    }).join('');
+    content += '</select>';
     content += '<div style="display:flex;gap:8px;align-items:center">';
     content += '<input class="input" id="msg-input" placeholder="Type a message..." maxlength="2000" style="flex:1" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendMsg();}" />';
     content += '<button class="btn btn-primary" onclick="sendMsg()"><i class="ti ti-send"></i></button>';
@@ -1956,11 +2022,20 @@ var CHECKLIST_TOPICS = [
 ];
 
 function renderTutorNotes() {
+  if (isLoading('tutor-notes')) return renderShell(tutorNav(), Spinner(), 'Session Notes');
   State.hwAssigned = null;
+  var d        = State.liveData['tutor-notes'] || {};
+  var sessions = d.sessions || [];
   var content = '<div class="page-header"><div><div class="page-title">Session notes</div><div class="page-sub">Complete the checklist — AI drafts the note for you</div></div></div>';
   content += '<div class="grid-2">';
   content += '<div>';
   content += '<div class="card mb-16"><div class="card-title">Session details</div>';
+  content += '<div class="input-group"><label class="input-label">Session</label><select class="select" id="note-session"><option value="">Select a session...</option>';
+  content += sessions.map(function(s){
+    var sName = (s.students && s.students.users && s.students.users.full_name) || '';
+    return '<option value="'+esc(s.id)+'">'+formatDate(s.scheduled_at)+' '+formatTime(s.scheduled_at)+(sName?' — '+esc(sName):'')+'</option>';
+  }).join('');
+  content += '</select></div>';
   content += '<div class="input-group"><label class="input-label">Session date</label><input class="input" type="date" id="note-date" value="'+new Date().toISOString().split('T')[0]+'" /></div>';
   content += '<div class="input-group"><label class="input-label">Duration</label><select class="select" id="note-duration"><option>45 minutes</option><option selected>60 minutes</option><option>90 minutes</option></select></div></div>';
   content += '<div class="card mb-16"><div class="card-title">What was covered</div>';
@@ -1987,12 +2062,42 @@ function generateNote() {
   if (!noteEl) return;
   var checked = Array.from(State.checklistChecked).map(function(i){ return CHECKLIST_TOPICS[i]; });
   noteEl.innerHTML = '<div class="card-title" style="display:flex;justify-content:space-between;align-items:center">Drafted note<span style="font-size:11px;color:var(--teal);display:flex;align-items:center;gap:4px"><i class="ti ti-check-circle"></i> Ready to review</span></div>';
-  noteEl.innerHTML += '<div style="font-size:13px;line-height:1.8;color:var(--text-2);background:var(--surface-2);border-radius:var(--radius-md);padding:16px;margin-bottom:14px"><strong style="color:var(--text-1)">Session — '+esc(date)+'</strong><br><br>';
+  noteEl.innerHTML += '<div style="font-size:13px;line-height:1.8;color:var(--text-2);background:var(--surface-2);border-radius:var(--r-md);padding:16px;margin-bottom:14px"><strong style="color:var(--text-1)">Session — '+esc(date)+'</strong><br><br>';
   if (checked.length) noteEl.innerHTML += 'Topics covered this session: '+esc(checked.join(', '))+'.<br><br>';
   if (flag)           noteEl.innerHTML += '<strong style="color:var(--amber)">Flag for next session:</strong> '+esc(flag)+'<br>';
   if (hw !== null)    noteEl.innerHTML += '<strong style="color:var(--text-1)">Homework assigned:</strong> '+(hw ? 'Yes' : 'No');
   noteEl.innerHTML += '</div>';
-  noteEl.innerHTML += '<div style="display:flex;gap:8px"><button class="btn btn-success" style="flex:1" onclick="toast(\'Note approved and saved.\',\'success\')"><i class="ti ti-check"></i> Approve & save</button><button class="btn btn-secondary" onclick="toast(\'Edit directly in the text area\',\'info\')"><i class="ti ti-edit"></i> Edit</button></div>';
+  noteEl.innerHTML += '<div style="display:flex;gap:8px"><button id="note-save-btn" class="btn btn-success" style="flex:1" onclick="saveTutorNote()"><i class="ti ti-check"></i> Approve & save</button></div>';
+}
+
+function saveTutorNote() {
+  var sessionId = (document.getElementById('note-session')||{}).value||'';
+  if (!sessionId) { toast('Please select a session first.','error'); return; }
+  var ratingRaw = (document.getElementById('rating-select')||{}).value||'3';
+  var rating    = parseInt(ratingRaw.charAt(0), 10) || 3;
+  var flag      = (document.getElementById('note-flag')||{}).value||'';
+  var checked   = Array.from(State.checklistChecked).map(function(i){ return CHECKLIST_TOPICS[i]; });
+  var btn = document.getElementById('note-save-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span> Saving...'; }
+  DB.saveSessionNote({
+    session_id:           sessionId,
+    topics_covered:       checked.join(', '),
+    understanding_rating: rating,
+    flag_for_next:        flag,
+    homework_assigned:    State.hwAssigned === true,
+    final_note:           checked.length ? 'Topics covered: ' + checked.join(', ') + (flag ? '. Flag: ' + flag : '') : (flag || ''),
+  }).then(function(r) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-check"></i> Approve & save'; }
+    if (r && r.error) { toast('Could not save note. Try again.','error'); return; }
+    toast('Session note saved.','success');
+    State.checklistChecked = new Set();
+    State.hwAssigned = null;
+    loadPageData('tutor-notes');
+    render();
+  }).catch(function() {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-check"></i> Approve & save'; }
+    toast('Something went wrong.','error');
+  });
 }
 
 function setHwToggle(val) {
@@ -2048,7 +2153,7 @@ function renderTutorHomework() {
   content += '<div class="input-group"><label class="input-label">Due date</label><input class="input" type="date" id="hw-due" /></div>';
   content += '<div class="input-group"><label class="input-label">Description (optional)</label><textarea class="input" id="hw-desc" rows="4" placeholder="Additional instructions or notes for the student..." style="resize:vertical;min-height:80px" maxlength="2000"></textarea></div>';
   content += '<div class="input-group"><label class="input-label">Photo (optional)</label>';
-  content += '<label style="display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px dashed var(--border);border-radius:var(--radius-md);cursor:pointer;background:var(--surface-2)">';
+  content += '<label style="display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px dashed var(--border);border-radius:var(--r-md);cursor:pointer;background:var(--surface-2)">';
   content += '<i class="ti ti-camera" style="font-size:22px;color:var(--accent);flex-shrink:0"></i>';
   content += '<div><div style="font-size:13px;font-weight:500;color:var(--text-1)">Take a photo or upload file</div><div style="font-size:12px;color:var(--text-3);margin-top:2px">Opens camera on mobile</div></div>';
   content += '<input type="file" accept="image/*" capture="environment" id="hw-photo" style="display:none" onchange="previewHwPhoto(this)" />';
@@ -2066,7 +2171,7 @@ function renderTutorHomework() {
         '<div><div style="font-size:14px;font-weight:600;color:var(--text-1)">'+esc(hw.title)+'</div>'+
         '<div style="font-size:12px;color:var(--text-3);margin-top:3px">'+esc(sName)+' &middot; Due '+esc(hw.due_date || '')+'</div>'+
         (hw.description ? '<div style="font-size:12px;color:var(--text-2);margin-top:4px">'+esc(hw.description)+'</div>' : '')+
-        (hw.photo_url   ? '<div style="margin-top:6px"><img src="'+esc(hw.photo_url)+'" alt="Homework photo" style="max-width:100%;max-height:120px;border-radius:var(--radius-md);border:1px solid var(--border)" /></div>' : '')+
+        (hw.photo_url   ? '<div style="margin-top:6px"><img src="'+esc(hw.photo_url)+'" alt="Homework photo" style="max-width:100%;max-height:120px;border-radius:var(--r-md);border:1px solid var(--border)" /></div>' : '')+
         '</div>'+StatusBadge(hw.status || 'pending')+'</div>';
     }).join('');
   } else {
@@ -2084,7 +2189,7 @@ function previewHwPhoto(input) {
   if (!input.files || !input.files[0]) { preview.innerHTML = ''; return; }
   var reader = new FileReader();
   reader.onload = function(e) {
-    preview.innerHTML = '<img src="'+e.target.result+'" alt="Preview" style="max-width:100%;max-height:180px;border-radius:var(--radius-md);border:1px solid var(--border)" />';
+    preview.innerHTML = '<img src="'+e.target.result+'" alt="Preview" style="max-width:100%;max-height:180px;border-radius:var(--r-md);border:1px solid var(--border)" />';
   };
   reader.readAsDataURL(input.files[0]);
 }
@@ -2228,9 +2333,7 @@ function renderParentMessages() {
   if (isLoading('parent-messages')) return renderShell(parentNav(), Spinner(), 'Messages');
   var d          = State.liveData['parent-messages'] || {};
   var msgs       = d.messages || [];
-  var parentData = State.liveData['parent-dashboard'] || State.liveData['parent-sessions'] || {};
-  var child      = (parentData.students || [])[0] || {};
-  var tutorId    = child.tutor_id || null;
+  var tutorId    = d.tutorId || null;
 
   var content = '<div class="page-header"><div><div class="page-title">Messages</div><div class="page-sub">Messages with your child\'s tutor</div></div></div>';
   content += '<div class="card" style="display:flex;flex-direction:column">';
