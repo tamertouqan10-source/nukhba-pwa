@@ -10,6 +10,7 @@ const State = {
   liveData:         {},   // Loaded from Supabase per page
   loading:          {},   // Per-page loading flags
   dataTimestamps:   {},   // { source: timestampMs } for 30-second cache
+  notifications:    [],   // In-app notifications for current user
   onboarding:       { step: 1, data: {} },
   checklistChecked: new Set(),
 };
@@ -82,13 +83,21 @@ function setUser(role, name, id, needsOnboarding) {
   State.onboarding      = { step: 1, data: {} };
   State.liveData        = {};
   State.dataTimestamps  = {};
+  State.notifications   = [];
   if (needsOnboarding && role !== 'admin') {
     State.page = 'onboarding';
   } else {
     State.page = role + '-dashboard';
   }
+  if (id) {
+    Realtime.subscribeNotifications(id, function(notif) {
+      State.notifications.unshift(notif);
+      render();
+    });
+  }
   render();
   if (!needsOnboarding) loadPageData(State.page);
+  loadNotifications();
 }
 
 /* ---- DATA LOADER ---- */
@@ -282,6 +291,14 @@ function loadPageData(page) {
         });
       }).catch(function(){ setLoading(page, false); });
     },
+    'tutor-homework': function() {
+      setLoading(page, true);
+      DB.loadTutorHomework(uid).then(function(data) {
+        State.liveData[page] = data;
+        setLoading(page, false);
+        if (State.page === page) render();
+      }).catch(function(){ setLoading(page, false); });
+    },
   };
 
   if (loaders[page]) loaders[page]();
@@ -339,6 +356,75 @@ function useCachedIfAvailable(page, source) {
   State.liveData[page] = State.liveData[siblings[0]];
   if (State.page === page) render();
   return true;
+}
+
+/* ---- NOTIFICATIONS ---- */
+function loadNotifications() {
+  var uid = State.user && State.user.id;
+  if (!uid) return;
+  DB.loadNotifications(uid).then(function(notifs) {
+    State.notifications = notifs;
+    render();
+  }).catch(function(){});
+}
+
+function toggleNotificationsDropdown() {
+  var existing = document.getElementById('notif-dropdown');
+  if (existing) { existing.remove(); return; }
+
+  var notifs = State.notifications || [];
+  var hasUnread = notifs.some(function(n){ return !n.is_read; });
+
+  var typeIcon = function(type) {
+    return type.indexOf('session') > -1 ? 'ti-calendar' : 'ti-books';
+  };
+
+  var html = '<div id="notif-dropdown" style="position:fixed;top:56px;right:16px;width:320px;max-height:400px;overflow-y:auto;background:var(--surface-1);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:0 8px 32px rgba(0,0,0,0.12);z-index:2000">';
+  html += '<div style="padding:14px 16px 10px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface-1)">';
+  html += '<div style="font-size:14px;font-weight:600;color:var(--text-1)">Notifications</div>';
+  if (hasUnread) {
+    html += '<button class="btn btn-ghost" style="font-size:12px;padding:4px 8px" onclick="markAllNotificationsRead()">Mark all read</button>';
+  }
+  html += '</div>';
+
+  if (!notifs.length) {
+    html += '<div style="padding:32px 16px;text-align:center;color:var(--text-3);font-size:13px"><i class="ti ti-bell-off" style="font-size:28px;display:block;margin-bottom:8px;color:var(--text-3)"></i>No notifications yet</div>';
+  } else {
+    html += notifs.map(function(n) {
+      var bg = n.is_read ? '' : 'background:var(--accent-soft);';
+      return '<div style="' + bg + 'padding:12px 16px;display:flex;gap:10px;align-items:flex-start;border-bottom:1px solid var(--border)">' +
+        '<i class="ti ' + typeIcon(n.type) + '" style="font-size:16px;color:var(--accent);margin-top:1px;flex-shrink:0"></i>' +
+        '<div style="flex:1;min-width:0"><div style="font-size:13px;color:var(--text-1);line-height:1.4">' + esc(n.message) + '</div>' +
+        '<div style="font-size:11px;color:var(--text-3);margin-top:3px">' + timeAgo(n.created_at) + '</div></div>' +
+        (n.is_read ? '' : '<div style="width:7px;height:7px;border-radius:50%;background:var(--accent);flex-shrink:0;margin-top:5px"></div>') +
+        '</div>';
+    }).join('');
+  }
+  html += '</div>';
+
+  document.body.insertAdjacentHTML('beforeend', html);
+
+  setTimeout(function() {
+    document.addEventListener('click', function _close(e) {
+      var dd = document.getElementById('notif-dropdown');
+      if (dd && !dd.contains(e.target)) {
+        dd.remove();
+        document.removeEventListener('click', _close);
+      }
+    });
+  }, 0);
+}
+
+function markAllNotificationsRead() {
+  var uid = State.user && State.user.id;
+  var dd  = document.getElementById('notif-dropdown');
+  if (dd) dd.remove();
+  DB.markAllNotificationsRead(uid).then(function() {
+    State.notifications = (State.notifications || []).map(function(n) {
+      return Object.assign({}, n, { is_read: true });
+    });
+    render();
+  }).catch(function(){});
 }
 
 /* ---- TOAST ---- */
@@ -659,8 +745,12 @@ function authDoSignUp() {
 
 /* ---- APP SHELL ---- */
 function renderShell(navItems, pageContent, title) {
-  var u = State.user;
+  var u        = State.user;
   var colorMap = { student:'purple', tutor:'green', parent:'amber', admin:'purple' };
+  var unread   = (State.notifications || []).filter(function(n){ return !n.is_read; }).length;
+  var badge    = unread
+    ? '<span class="notif-unread-badge" style="position:absolute;top:-3px;right:-3px;background:var(--danger);color:#fff;border-radius:999px;font-size:9px;font-weight:700;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 2px;pointer-events:none">' + (unread > 9 ? '9+' : unread) + '</span>'
+    : '';
   return '<div class="app-shell">' +
     '<aside class="sidebar" id="sidebar">' +
     '<div class="sidebar-logo"><div class="nav-logo-mark">N</div><div><div class="nav-logo-text">Nukhba</div><div style="font-size:10px;color:var(--text-3);text-transform:capitalize">' + esc(u.role) + ' portal</div></div></div>' +
@@ -675,7 +765,9 @@ function renderShell(navItems, pageContent, title) {
     '<button class="btn btn-icon btn-ghost" id="menu-btn" onclick="document.getElementById(\'sidebar\').classList.toggle(\'open\')" style="display:none"><i class="ti ti-menu-2"></i></button>' +
     '<div class="topbar-title">' + esc(title) + '</div></div>' +
     '<div class="topbar-right">' +
-    '<button class="btn btn-icon btn-secondary" onclick="toast(\'No new notifications\',\'info\')" title="Notifications"><i class="ti ti-bell"></i></button>' +
+    '<div style="position:relative;display:inline-flex">' +
+    '<button class="btn btn-icon btn-secondary" onclick="toggleNotificationsDropdown()" title="Notifications" style="position:relative"><i class="ti ti-bell"></i>' + badge + '</button>' +
+    '</div>' +
     '</div></div>' +
     '<div class="page">' + pageContent + '</div>' +
     '</div></div>';
@@ -1093,6 +1185,7 @@ function tutorNav() {
     {id:'tutor-students',  icon:'ti-users',            label:'My students'},
     {id:'tutor-notes',     icon:'ti-notes',            label:'Session notes'},
     {id:'tutor-hours',     icon:'ti-clock',            label:'Hour log'},
+    {id:'tutor-homework',  icon:'ti-pencil-plus',      label:'Assign Homework'},
   ].map(function(i){
     return '<div class="nav-item'+(State.page===i.id?' active':'')+'" onclick="navigate(\''+i.id+'\')"><i class="ti '+i.icon+'"></i> '+i.label+'</div>';
   }).join('');
@@ -1191,6 +1284,7 @@ var CHECKLIST_TOPICS = [
 ];
 
 function renderTutorNotes() {
+  State.hwAssigned = null;
   var content = '<div class="page-header"><div><div class="page-title">Session notes</div><div class="page-sub">Complete the checklist — AI drafts the note for you</div></div></div>';
   content += '<div class="grid-2">';
   content += '<div>';
@@ -1205,7 +1299,7 @@ function renderTutorNotes() {
   content += '<div class="card mb-16"><div class="card-title">Understanding & notes</div>';
   content += '<div class="input-group"><label class="input-label">Understanding (1–5)</label><select class="select" id="rating-select"><option>5 — Excellent</option><option>4 — Good</option><option selected>3 — Moderate</option><option>2 — Struggled</option><option>1 — Did not grasp</option></select></div>';
   content += '<div class="input-group"><label class="input-label">Flag for next session</label><input class="input" id="note-flag" placeholder="e.g. Negative coefficients need more work" maxlength="300" /></div>';
-  content += '<div class="input-group"><label class="input-label">Homework assigned</label><input class="input" id="note-hw" placeholder="e.g. 10 quadratic practice problems" maxlength="300" /></div></div>';
+  content += '<div class="input-group"><label class="input-label">Did you assign homework in this session?</label><div style="display:flex;gap:8px;margin-top:4px"><button id="hw-yes" class="btn btn-secondary" style="flex:1" onclick="setHwToggle(true)"><i class="ti ti-check"></i> Yes</button><button id="hw-no" class="btn btn-secondary" style="flex:1" onclick="setHwToggle(false)"><i class="ti ti-x"></i> No</button></div></div></div>';
   content += '<button class="btn btn-primary" style="width:100%" onclick="generateNote()"><i class="ti ti-sparkles"></i> Generate session note</button>';
   content += '</div>';
   content += '<div class="card" id="note-output"><div class="card-title">Drafted note</div>'+EmptyState('ti-file-text','Complete the checklist and click Generate — your session note will appear here.')+'</div>';
@@ -1215,7 +1309,7 @@ function renderTutorNotes() {
 
 function generateNote() {
   var flag = (document.getElementById('note-flag')||{}).value||'';
-  var hw   = (document.getElementById('note-hw')||{}).value||'';
+  var hw   = State.hwAssigned;
   var date = (document.getElementById('note-date')||{}).value||new Date().toLocaleDateString();
   var noteEl = document.getElementById('note-output');
   if (!noteEl) return;
@@ -1224,9 +1318,17 @@ function generateNote() {
   noteEl.innerHTML += '<div style="font-size:13px;line-height:1.8;color:var(--text-2);background:var(--surface-2);border-radius:var(--radius-md);padding:16px;margin-bottom:14px"><strong style="color:var(--text-1)">Session — '+esc(date)+'</strong><br><br>';
   if (checked.length) noteEl.innerHTML += 'Topics covered this session: '+esc(checked.join(', '))+'.<br><br>';
   if (flag)           noteEl.innerHTML += '<strong style="color:var(--amber)">Flag for next session:</strong> '+esc(flag)+'<br>';
-  if (hw)             noteEl.innerHTML += '<strong style="color:var(--text-1)">Homework assigned:</strong> '+esc(hw);
+  if (hw !== null)    noteEl.innerHTML += '<strong style="color:var(--text-1)">Homework assigned:</strong> '+(hw ? 'Yes' : 'No');
   noteEl.innerHTML += '</div>';
   noteEl.innerHTML += '<div style="display:flex;gap:8px"><button class="btn btn-success" style="flex:1" onclick="toast(\'Note approved and saved.\',\'success\')"><i class="ti ti-check"></i> Approve & save</button><button class="btn btn-secondary" onclick="toast(\'Edit directly in the text area\',\'info\')"><i class="ti ti-edit"></i> Edit</button></div>';
+}
+
+function setHwToggle(val) {
+  State.hwAssigned = val;
+  var yes = document.getElementById('hw-yes');
+  var no  = document.getElementById('hw-no');
+  if (yes) yes.className = 'btn ' + (val  ? 'btn-primary'   : 'btn-secondary');
+  if (no)  no.className  = 'btn ' + (!val ? 'btn-primary'   : 'btn-secondary');
 }
 
 function renderTutorHours() {
@@ -1252,6 +1354,108 @@ function renderTutorHours() {
   }
   content += '</div>';
   return renderShell(tutorNav(), content, 'Hour Log');
+}
+
+function renderTutorHomework() {
+  if (isLoading('tutor-homework')) return renderShell(tutorNav(), Spinner(), 'Assign Homework');
+  var d        = State.liveData['tutor-homework'] || {};
+  var students = d.students || [];
+  var hwList   = d.homework || [];
+
+  var content = '<div class="page-header"><div><div class="page-title">Assign Homework</div><div class="page-sub">Attach a photo, type a description, or both</div></div></div>';
+  content += '<div class="grid-2">';
+
+  content += '<div class="card"><div class="card-title">New assignment</div>';
+  content += '<div class="input-group"><label class="input-label">Student</label><select class="select" id="hw-student"><option value="">Select a student...</option>';
+  content += students.map(function(s){
+    var name = (s.users && s.users.full_name) || 'Unknown';
+    return '<option value="'+esc(s.id)+'">'+esc(name)+'</option>';
+  }).join('');
+  content += '</select></div>';
+  content += '<div class="input-group"><label class="input-label">Title</label><input class="input" id="hw-title" placeholder="e.g. Quadratic equations — practice set A" maxlength="200" /></div>';
+  content += '<div class="input-group"><label class="input-label">Due date</label><input class="input" type="date" id="hw-due" /></div>';
+  content += '<div class="input-group"><label class="input-label">Description (optional)</label><textarea class="input" id="hw-desc" rows="4" placeholder="Additional instructions or notes for the student..." style="resize:vertical;min-height:80px" maxlength="2000"></textarea></div>';
+  content += '<div class="input-group"><label class="input-label">Photo (optional)</label>';
+  content += '<label style="display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px dashed var(--border);border-radius:var(--radius-md);cursor:pointer;background:var(--surface-2)">';
+  content += '<i class="ti ti-camera" style="font-size:22px;color:var(--accent);flex-shrink:0"></i>';
+  content += '<div><div style="font-size:13px;font-weight:500;color:var(--text-1)">Take a photo or upload file</div><div style="font-size:12px;color:var(--text-3);margin-top:2px">Opens camera on mobile</div></div>';
+  content += '<input type="file" accept="image/*" capture="environment" id="hw-photo" style="display:none" onchange="previewHwPhoto(this)" />';
+  content += '</label>';
+  content += '<div id="hw-photo-preview" style="margin-top:8px"></div>';
+  content += '</div>';
+  content += '<button class="btn btn-primary" style="width:100%" onclick="submitHomework()"><i class="ti ti-send"></i> Assign homework</button>';
+  content += '</div>';
+
+  content += '<div class="card"><div class="card-title">Recently assigned</div>';
+  if (hwList.length) {
+    content += hwList.map(function(hw){
+      var sName = (hw.students && hw.students.users && hw.students.users.full_name) || 'Unknown';
+      return '<div style="padding:12px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start">'+
+        '<div><div style="font-size:14px;font-weight:600;color:var(--text-1)">'+esc(hw.title)+'</div>'+
+        '<div style="font-size:12px;color:var(--text-3);margin-top:3px">'+esc(sName)+' &middot; Due '+esc(hw.due_date || '')+'</div>'+
+        (hw.description ? '<div style="font-size:12px;color:var(--text-2);margin-top:4px">'+esc(hw.description)+'</div>' : '')+
+        (hw.photo_url   ? '<div style="margin-top:6px"><img src="'+esc(hw.photo_url)+'" alt="Homework photo" style="max-width:100%;max-height:120px;border-radius:var(--radius-md);border:1px solid var(--border)" /></div>' : '')+
+        '</div>'+StatusBadge(hw.status || 'pending')+'</div>';
+    }).join('');
+  } else {
+    content += EmptyState('ti-books','No homework assigned yet.');
+  }
+  content += '</div>';
+
+  content += '</div>';
+  return renderShell(tutorNav(), content, 'Assign Homework');
+}
+
+function previewHwPhoto(input) {
+  var preview = document.getElementById('hw-photo-preview');
+  if (!preview) return;
+  if (!input.files || !input.files[0]) { preview.innerHTML = ''; return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    preview.innerHTML = '<img src="'+e.target.result+'" alt="Preview" style="max-width:100%;max-height:180px;border-radius:var(--radius-md);border:1px solid var(--border)" />';
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+function submitHomework() {
+  var uid       = State.user && State.user.id;
+  var studentEl = document.getElementById('hw-student');
+  var titleEl   = document.getElementById('hw-title');
+  var descEl    = document.getElementById('hw-desc');
+  var dueEl     = document.getElementById('hw-due');
+  var photoEl   = document.getElementById('hw-photo');
+
+  var studentId = studentEl ? studentEl.value : '';
+  var title     = titleEl   ? titleEl.value.trim()   : '';
+  var desc      = descEl    ? descEl.value.trim()    : '';
+  var dueDate   = dueEl     ? dueEl.value            : '';
+  var photoFile = photoEl && photoEl.files && photoEl.files[0] ? photoEl.files[0] : null;
+
+  if (!studentId) { toast('Please select a student.', 'error'); return; }
+  if (!title)     { toast('Please enter a title for the homework.', 'error'); return; }
+  if (!dueDate)   { toast('Please select a due date.', 'error'); return; }
+
+  var btn = document.querySelector('[onclick="submitHomework()"]');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2"></i> Saving...'; }
+
+  DB.assignHomework(uid, studentId, title, desc || null, photoFile, dueDate)
+    .then(function(r) {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-send"></i> Assign homework'; }
+      if (r && r.error) { toast('Could not save homework. Try again.', 'error'); return; }
+      toast('Homework assigned successfully.', 'success');
+      if (studentEl)  studentEl.value = '';
+      if (titleEl)    titleEl.value   = '';
+      if (descEl)     descEl.value    = '';
+      if (dueEl)      dueEl.value     = '';
+      if (photoEl)    photoEl.value   = '';
+      var prev = document.getElementById('hw-photo-preview');
+      if (prev) prev.innerHTML = '';
+      loadPageData('tutor-homework');
+    })
+    .catch(function() {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-send"></i> Assign homework'; }
+      toast('Something went wrong. Please try again.', 'error');
+    });
 }
 
 /* ============================================
@@ -1618,6 +1822,7 @@ function render() {
     'tutor-students':     renderTutorStudents,
     'tutor-notes':        renderTutorNotes,
     'tutor-hours':        renderTutorHours,
+    'tutor-homework':     renderTutorHomework,
     'parent-dashboard':   renderParentDashboard,
     'parent-progress':    renderParentProgress,
     'parent-sessions':    renderParentSessions,

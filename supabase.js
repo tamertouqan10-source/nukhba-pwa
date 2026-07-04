@@ -264,6 +264,7 @@ var NukhbaAuth = (function() {
     State.modal           = null;
     State.liveData        = {};
     State.dataTimestamps  = {};
+    State.notifications   = [];
     render();
   }
 
@@ -358,7 +359,7 @@ var DB = (function() {
       topics_covered:       [Sanitize.text(note.topics_covered || '', 'long')].filter(Boolean),
       understanding_rating: Math.min(5, Math.max(1, parseInt(note.understanding_rating, 10) || 3)),
       flag_for_next:        Sanitize.text(note.flag_for_next || '', 'text'),
-      homework_assigned:    Sanitize.text(note.homework_assigned || '', 'text'),
+      homework_assigned:    note.homework_assigned === true,
       final_note:           Sanitize.text(note.final_note || '', 'long'),
       is_approved:          false,
     };
@@ -469,6 +470,75 @@ var DB = (function() {
     });
   }
 
+  function loadNotifications(userId) {
+    return q(function(){
+      return _supabaseClient.from('notifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(30);
+    }).then(function(r) { return r.data || []; });
+  }
+
+  function markAllNotificationsRead(userId) {
+    return q(function(){
+      return _supabaseClient.from('notifications')
+        .update({ is_read: true })
+        .eq('user_id', userId)
+        .eq('is_read', false);
+    });
+  }
+
+  function loadTutorHomework(userId) {
+    return Promise.all([
+      q(function(){ return _supabaseClient.from('students').select('id, users(full_name)').eq('tutor_id', userId); }),
+      q(function(){ return _supabaseClient.from('homework').select('*, students(id, users(full_name))').eq('tutor_id', userId).order('created_at', { ascending: false }).limit(20); }),
+    ]).then(function(results) {
+      return {
+        students: results[0].data || [],
+        homework: results[1].data || [],
+      };
+    });
+  }
+
+  function assignHomework(tutorId, studentId, title, description, photoFile, dueDate) {
+    if (!tutorId || !studentId || !title || !dueDate)
+      return Promise.resolve({ error: 'Missing required fields' });
+    var cleanTitle = Sanitize.text(title, 'text');
+    var cleanDesc  = description ? Sanitize.text(description, 'long') : null;
+    if (!cleanTitle) return Promise.resolve({ error: 'Invalid title' });
+
+    var photoUpload = Promise.resolve(null);
+    if (photoFile) {
+      var ext      = (photoFile.name || 'jpg').split('.').pop().toLowerCase();
+      var safeName = tutorId + '/' + studentId + '/' + Date.now() + '.' + ext;
+      photoUpload  = q(function(){
+        return _supabaseClient.storage.from('homework-photos').upload(safeName, photoFile, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+      }).then(function(r) {
+        if (r.error) { console.warn('[DB] Photo upload error:', r.error); return null; }
+        var pub = _supabaseClient.storage.from('homework-photos').getPublicUrl(safeName);
+        return (pub.data && pub.data.publicUrl) || null;
+      });
+    }
+
+    return photoUpload.then(function(photoUrl) {
+      return q(function(){
+        return _supabaseClient.from('homework').insert([{
+          tutor_id:    tutorId,
+          student_id:  studentId,
+          title:       cleanTitle,
+          description: cleanDesc,
+          photo_url:   photoUrl,
+          due_date:    dueDate,
+          status:      'pending',
+        }]);
+      });
+    });
+  }
+
   return {
     loadStudentDashboard: loadStudentDashboard,
     loadTutorDashboard:   loadTutorDashboard,
@@ -485,6 +555,10 @@ var DB = (function() {
     denyUser:             denyUser,
     markSessionComplete:  markSessionComplete,
     markStudentJoined:    markStudentJoined,
+    loadTutorHomework:          loadTutorHomework,
+    assignHomework:             assignHomework,
+    loadNotifications:          loadNotifications,
+    markAllNotificationsRead:   markAllNotificationsRead,
   };
 })();
 
@@ -503,11 +577,24 @@ var Realtime = (function() {
       .subscribe();
     channels.push(ch);
   }
+  function subscribeNotifications(userId, onNotification) {
+    if (!_supabaseClient) return;
+    var ch = _supabaseClient.channel('notifications-' + userId)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'notifications',
+        filter: 'user_id=eq.' + userId,
+      }, function(payload) {
+        if (onNotification) onNotification(payload.new);
+      })
+      .subscribe();
+    channels.push(ch);
+  }
+
   function unsubscribeAll() {
     channels.forEach(function(ch) { _supabaseClient && _supabaseClient.removeChannel(ch); });
     channels = [];
   }
-  return { subscribeMessages: subscribeMessages, unsubscribeAll: unsubscribeAll };
+  return { subscribeMessages: subscribeMessages, subscribeNotifications: subscribeNotifications, unsubscribeAll: unsubscribeAll };
 })();
 
 /* ---- INIT ---- */
