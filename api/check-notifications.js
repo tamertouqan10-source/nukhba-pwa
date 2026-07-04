@@ -25,40 +25,43 @@ module.exports = async function handler(req, res) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
+  // Cron runs once daily at 8am — use 24h and 48h windows so every
+  // session and homework deadline is caught in exactly one daily pass.
+  // UNIQUE(user_id, type, related_id) prevents duplicates on re-runs.
   var now  = new Date();
   var rows = [];
 
   // ---- Session reminders ------------------------------------------------
 
-  // 1h window: sessions scheduled 50–70 min from now
-  var s1hStart = new Date(now.getTime() + 50 * 60 * 1000).toISOString();
-  var s1hEnd   = new Date(now.getTime() + 70 * 60 * 1000).toISOString();
-  var sess1h   = await admin
+  // "Today" window: sessions scheduled in the next 0–24h
+  var sTodayStart = now.toISOString();
+  var sTodayEnd   = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+  var sessToday   = await admin
     .from('sessions')
     .select('id, scheduled_at, student_id, tutor_id, students(parent_id)')
-    .gte('scheduled_at', s1hStart)
-    .lte('scheduled_at', s1hEnd)
+    .gte('scheduled_at', sTodayStart)
+    .lte('scheduled_at', sTodayEnd)
     .eq('status', 'upcoming');
 
-  (sess1h.data || []).forEach(function(s) {
-    var msg      = 'Session starting in 1 hour';
+  (sessToday.data || []).forEach(function(s) {
+    var msg      = 'Session scheduled today';
     var parentId = s.students && s.students.parent_id;
     if (s.student_id) rows.push({ user_id: s.student_id, type: 'session_reminder_1h', related_id: s.id, message: msg });
     if (s.tutor_id)   rows.push({ user_id: s.tutor_id,   type: 'session_reminder_1h', related_id: s.id, message: msg });
     if (parentId)     rows.push({ user_id: parentId,      type: 'session_reminder_1h', related_id: s.id, message: msg });
   });
 
-  // 24h window: sessions scheduled 23–25 hours from now
-  var s24hStart = new Date(now.getTime() + 23 * 60 * 60 * 1000).toISOString();
-  var s24hEnd   = new Date(now.getTime() + 25 * 60 * 60 * 1000).toISOString();
-  var sess24h   = await admin
+  // "Tomorrow" window: sessions scheduled in 24–48h from now
+  var sTmrwStart = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+  var sTmrwEnd   = new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString();
+  var sessTmrw   = await admin
     .from('sessions')
     .select('id, scheduled_at, student_id, tutor_id, students(parent_id)')
-    .gte('scheduled_at', s24hStart)
-    .lte('scheduled_at', s24hEnd)
+    .gte('scheduled_at', sTmrwStart)
+    .lte('scheduled_at', sTmrwEnd)
     .eq('status', 'upcoming');
 
-  (sess24h.data || []).forEach(function(s) {
+  (sessTmrw.data || []).forEach(function(s) {
     var msg      = 'Session scheduled for tomorrow';
     var parentId = s.students && s.students.parent_id;
     if (s.student_id) rows.push({ user_id: s.student_id, type: 'session_reminder_24h', related_id: s.id, message: msg });
