@@ -299,6 +299,26 @@ function loadPageData(page) {
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
+    'tutor-calendar': function() {
+      setLoading(page, true);
+      DB.loadTutorCalendar(uid).then(function(data) {
+        State.liveData[page] = data;
+        setLoading(page, false);
+        if (State.page === page) render();
+      }).catch(function(){ setLoading(page, false); });
+    },
+    'tutor-messages': function() {
+      setLoading(page, true);
+      DB.loadMessages(uid).then(function(msgs) {
+        State.liveData[page] = { messages: msgs };
+        setLoading(page, false);
+        if (State.page === page) render();
+        Realtime.subscribeMessages(uid, function(msg) {
+          State.liveData[page].messages.unshift(msg);
+          if (State.page === page) render();
+        });
+      }).catch(function(){ setLoading(page, false); });
+    },
   };
 
   if (loaders[page]) loaders[page]();
@@ -1181,11 +1201,12 @@ function renderStudentMessages() {
 function tutorNav() {
   return [
     {id:'tutor-dashboard', icon:'ti-layout-dashboard', label:'Dashboard'},
-    {id:'tutor-sessions',  icon:'ti-calendar',         label:'Sessions'},
+    {id:'tutor-calendar',  icon:'ti-calendar',         label:'Calendar'},
     {id:'tutor-students',  icon:'ti-users',            label:'My students'},
     {id:'tutor-notes',     icon:'ti-notes',            label:'Session notes'},
     {id:'tutor-hours',     icon:'ti-clock',            label:'Hour log'},
     {id:'tutor-homework',  icon:'ti-pencil-plus',      label:'Assign Homework'},
+    {id:'tutor-messages',  icon:'ti-message-2',        label:'Messages'},
   ].map(function(i){
     return '<div class="nav-item'+(State.page===i.id?' active':'')+'" onclick="navigate(\''+i.id+'\')"><i class="ti '+i.icon+'"></i> '+i.label+'</div>';
   }).join('');
@@ -1253,6 +1274,128 @@ function renderTutorSessions() {
   }
   content += '</div>';
   return renderShell(tutorNav(), content, 'Sessions');
+}
+
+function renderTutorCalendar() {
+  if (isLoading('tutor-calendar')) return renderShell(tutorNav(), Spinner(), 'Calendar');
+  var d        = State.liveData['tutor-calendar'] || {};
+  var students = d.students || [];
+  var sessions = d.sessions || [];
+  var homework = d.homework || [];
+
+  var content = '<div class="page-header"><div><div class="page-title">Calendar</div><div class="page-sub">Upcoming sessions and homework deadlines</div></div><button class="btn btn-primary" onclick="toggleBookingForm()"><i class="ti ti-plus"></i> Book session</button></div>';
+
+  // Booking form — hidden until the button is clicked
+  content += '<div id="booking-form-wrap" style="display:none"><div class="card mb-24"><div class="card-title">Book a session</div>';
+  content += '<div class="grid-2">';
+  content += '<div class="input-group"><label class="input-label">Student</label><select class="select" id="book-student"><option value="">Select a student...</option>';
+  content += students.map(function(s){
+    return '<option value="'+esc(s.id)+'">'+(s.users&&s.users.full_name?esc(s.users.full_name):'Unknown')+'</option>';
+  }).join('');
+  content += '</select></div>';
+  content += '<div class="input-group"><label class="input-label">Date &amp; time</label><input class="input" type="datetime-local" id="book-datetime" /></div>';
+  content += '<div class="input-group"><label class="input-label">Duration</label><select class="select" id="book-duration"><option value="45">45 minutes</option><option value="60" selected>60 minutes</option><option value="90">90 minutes</option></select></div>';
+  content += '<div class="input-group"><label class="input-label">Meeting link (Zoom / Google Meet)</label><input class="input" id="book-link" placeholder="https://meet.google.com/..." maxlength="500" /></div>';
+  content += '</div>';
+  content += '<div style="display:flex;gap:8px;margin-top:4px"><button class="btn btn-primary" onclick="bookSession()"><i class="ti ti-calendar-plus"></i> Confirm booking</button><button class="btn btn-secondary" onclick="toggleBookingForm()">Cancel</button></div>';
+  content += '</div></div>';
+
+  content += '<div class="grid-2">';
+
+  // Upcoming sessions
+  content += '<div class="card"><div class="card-title">Upcoming sessions</div>';
+  if (sessions.length) {
+    content += sessions.map(function(s){
+      var sName = (s.students && s.students.users && s.students.users.full_name) || 'Student';
+      var joinBtn = s.meeting_link
+        ? '<a class="btn btn-primary btn-sm" href="'+esc(s.meeting_link)+'" target="_blank" rel="noopener"><i class="ti ti-video"></i> Join</a>'
+        : StatusBadge(s.status);
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)">'+
+        '<div><div style="font-size:14px;font-weight:600;color:var(--text-1)">'+esc(sName)+'</div>'+
+        '<div style="font-size:12px;color:var(--text-3);margin-top:2px">'+
+        '<i class="ti ti-calendar" style="font-size:11px"></i> '+formatDate(s.scheduled_at)+' &middot; '+formatTime(s.scheduled_at)+
+        ' &middot; '+(s.duration_minutes||60)+' min</div></div>'+joinBtn+'</div>';
+    }).join('');
+  } else {
+    content += EmptyState('ti-calendar','No upcoming sessions. Use "Book session" above.');
+  }
+  content += '</div>';
+
+  // Upcoming homework due dates
+  content += '<div class="card"><div class="card-title">Homework due dates</div>';
+  if (homework.length) {
+    content += homework.map(function(hw){
+      var sName = (hw.students && hw.students.users && hw.students.users.full_name) || 'Student';
+      return '<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)">'+
+        '<div><div style="font-size:13px;font-weight:600;color:var(--text-1)">'+esc(hw.title)+'</div>'+
+        '<div style="font-size:12px;color:var(--text-3);margin-top:2px">'+esc(sName)+' &middot; Due '+esc(hw.due_date)+'</div></div>'+
+        StatusBadge(hw.status||'pending')+'</div>';
+    }).join('');
+  } else {
+    content += EmptyState('ti-books','No upcoming homework deadlines.');
+  }
+  content += '</div>';
+
+  content += '</div>';
+  return renderShell(tutorNav(), content, 'Calendar');
+}
+
+function toggleBookingForm() {
+  var wrap = document.getElementById('booking-form-wrap');
+  if (wrap) wrap.style.display = wrap.style.display === 'none' ? '' : 'none';
+}
+
+function bookSession() {
+  var uid       = State.user && State.user.id;
+  var studentId = (document.getElementById('book-student')||{}).value||'';
+  var datetime  = (document.getElementById('book-datetime')||{}).value||'';
+  var duration  = (document.getElementById('book-duration')||{}).value||'60';
+  var link      = (document.getElementById('book-link')||{}).value||'';
+
+  if (!studentId) { toast('Please select a student.', 'error'); return; }
+  if (!datetime)  { toast('Please select a date and time.', 'error'); return; }
+
+  var scheduledAt = new Date(datetime).toISOString();
+  var btn = document.querySelector('[onclick="bookSession()"]');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2"></i> Saving...'; }
+
+  DB.createSession(uid, studentId, scheduledAt, parseInt(duration, 10), link || null)
+    .then(function(r) {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-calendar-plus"></i> Confirm booking'; }
+      if (r && r.error) { toast('Could not book session. Try again.', 'error'); return; }
+      toast('Session booked.', 'success');
+      toggleBookingForm();
+      bustCache('tutor');
+      loadPageData('tutor-calendar');
+    })
+    .catch(function() {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-calendar-plus"></i> Confirm booking'; }
+      toast('Something went wrong. Please try again.', 'error');
+    });
+}
+
+function renderTutorMessages() {
+  if (isLoading('tutor-messages')) return renderShell(tutorNav(), Spinner(), 'Messages');
+  var d    = State.liveData['tutor-messages'] || {};
+  var msgs = d.messages || [];
+  var content = '<div class="page-header"><div><div class="page-title">Messages</div><div class="page-sub">Conversations with students and admin</div></div></div>';
+  if (msgs.length) {
+    content += '<div class="card">';
+    content += msgs.map(function(m){
+      var fromMe = m.sender_id === State.user.id;
+      var name   = fromMe ? 'You' : esc((m.sender && m.sender.full_name) || 'Unknown');
+      return '<div style="display:flex;gap:10px;padding:12px 0;border-bottom:1px solid var(--border-2)">'+
+        Avatar(fromMe ? State.user.name : ((m.sender && m.sender.full_name)||'?'), 'green', 32)+
+        '<div style="flex:1"><div style="display:flex;justify-content:space-between;margin-bottom:4px">'+
+        '<div style="font-size:13px;font-weight:600;color:var(--text-1)">'+name+'</div>'+
+        '<div style="font-size:11px;color:var(--text-3)">'+timeAgo(m.created_at)+'</div></div>'+
+        '<div style="font-size:13px;color:var(--text-2)">'+esc(m.content)+'</div></div></div>';
+    }).join('');
+    content += '</div>';
+  } else {
+    content += '<div class="card">'+EmptyState('ti-message-2','No messages yet.')+'</div>';
+  }
+  return renderShell(tutorNav(), content, 'Messages');
 }
 
 function renderTutorStudents() {
@@ -1604,7 +1747,7 @@ function renderAdminDashboard() {
   content += '<div class="stat-grid mb-24">';
   content += '<div class="stat-card"><div class="stat-icon g"><i class="ti ti-users"></i></div><div class="stat-val">'+students.length+'</div><div class="stat-lbl">Active students</div></div>';
   content += '<div class="stat-card"><div class="stat-icon v"><i class="ti ti-user-check"></i></div><div class="stat-val">'+tutors.length+'</div><div class="stat-lbl">Active tutors</div></div>';
-  content += '<div class="stat-card"><div class="stat-icon a"><i class="ti ti-user-clock"></i></div><div class="stat-val">'+pending.length+'</div><div class="stat-lbl">Pending approval</div></div>';
+  content += '<div class="stat-card"><div class="stat-icon a"><i class="ti ti-hourglass"></i></div><div class="stat-val">'+pending.length+'</div><div class="stat-lbl">Pending approval</div></div>';
   content += '<div class="stat-card"><div class="stat-icon r"><i class="ti ti-calendar"></i></div><div class="stat-val">'+sessions.length+'</div><div class="stat-lbl">Upcoming sessions</div></div>';
   content += '</div>';
 
@@ -1819,6 +1962,8 @@ function render() {
     'student-messages':   renderStudentMessages,
     'tutor-dashboard':    renderTutorDashboard,
     'tutor-sessions':     renderTutorSessions,
+    'tutor-calendar':     renderTutorCalendar,
+    'tutor-messages':     renderTutorMessages,
     'tutor-students':     renderTutorStudents,
     'tutor-notes':        renderTutorNotes,
     'tutor-hours':        renderTutorHours,

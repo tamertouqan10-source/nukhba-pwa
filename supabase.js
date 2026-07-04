@@ -489,6 +489,38 @@ var DB = (function() {
     });
   }
 
+  function loadTutorCalendar(userId) {
+    var today = new Date().toISOString().split('T')[0];
+    return Promise.all([
+      q(function(){ return _supabaseClient.from('students').select('id, users(full_name)').eq('tutor_id', userId); }),
+      q(function(){ return _supabaseClient.from('sessions').select('*, students(users(full_name))').eq('tutor_id', userId).gte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(30); }),
+      q(function(){ return _supabaseClient.from('homework').select('id, title, due_date, status, students(users(full_name))').eq('tutor_id', userId).gte('due_date', today).eq('status', 'pending').order('due_date').limit(20); }),
+    ]).then(function(results) {
+      return {
+        students: results[0].data || [],
+        sessions: results[1].data || [],
+        homework: results[2].data || [],
+      };
+    });
+  }
+
+  function createSession(tutorId, studentId, scheduledAt, durationMinutes, meetingLink) {
+    if (!tutorId || !studentId || !scheduledAt)
+      return Promise.resolve({ error: 'Missing required fields' });
+    var dur  = Math.min(180, Math.max(15, parseInt(durationMinutes, 10) || 60));
+    var link = meetingLink ? Sanitize.strip(meetingLink).slice(0, 500) : null;
+    return q(function(){
+      return _supabaseClient.from('sessions').insert([{
+        tutor_id:         tutorId,
+        student_id:       studentId,
+        scheduled_at:     scheduledAt,
+        duration_minutes: dur,
+        meeting_link:     link,
+        status:           'upcoming',
+      }]);
+    });
+  }
+
   function loadTutorHomework(userId) {
     return Promise.all([
       q(function(){ return _supabaseClient.from('students').select('id, users(full_name)').eq('tutor_id', userId); }),
@@ -555,6 +587,8 @@ var DB = (function() {
     denyUser:             denyUser,
     markSessionComplete:  markSessionComplete,
     markStudentJoined:    markStudentJoined,
+    loadTutorCalendar:          loadTutorCalendar,
+    createSession:              createSession,
     loadTutorHomework:          loadTutorHomework,
     assignHomework:             assignHomework,
     loadNotifications:          loadNotifications,
