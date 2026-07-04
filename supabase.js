@@ -571,6 +571,65 @@ var DB = (function() {
     });
   }
 
+  function loadStudentMatches(userId) {
+    return q(function(){
+      return _supabaseClient
+        .from('match_scores')
+        .select('overall_score, tutors(id, bio, subject, users(full_name))')
+        .eq('student_id', userId)
+        .order('overall_score', { ascending: false })
+        .limit(10);
+    }).then(function(r) { return r.data || []; });
+  }
+
+  function loadStudentHomework(userId) {
+    return q(function(){
+      return _supabaseClient
+        .from('homework')
+        .select('*, tutors(users(full_name))')
+        .eq('student_id', userId)
+        .order('due_date')
+        .limit(50);
+    }).then(function(r) { return r.data || []; });
+  }
+
+  function submitStudentHomework(hwId, studentId, studentNote, photoFile) {
+    if (!hwId || !studentId) return Promise.resolve({ error: 'Missing required fields' });
+    var clean = studentNote ? Sanitize.text(studentNote, 'long') : null;
+
+    var photoUpload = Promise.resolve(null);
+    if (photoFile) {
+      var ext      = (photoFile.name || 'jpg').split('.').pop().toLowerCase();
+      var safeName = 'student-submissions/' + studentId + '/' + hwId + '-' + Date.now() + '.' + ext;
+      photoUpload  = q(function(){
+        return _supabaseClient.storage.from('homework-photos').upload(safeName, photoFile, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+      }).then(function(r) {
+        if (r.error) { console.warn('[DB] Submission photo upload error:', r.error); return null; }
+        var pub = _supabaseClient.storage.from('homework-photos').getPublicUrl(safeName);
+        return (pub.data && pub.data.publicUrl) || null;
+      });
+    }
+
+    return photoUpload.then(function(photoUrl) {
+      var update = { status: 'submitted' };
+      if (clean)    update.student_note      = clean;
+      if (photoUrl) update.student_photo_url = photoUrl;
+      return q(function(){
+        return _supabaseClient.from('homework').update(update).eq('id', hwId).eq('student_id', studentId);
+      });
+    });
+  }
+
+  function toggleAcceptingStudents(tutorId, accepting) {
+    if (!tutorId) return Promise.resolve({ error: 'Missing tutor ID' });
+    return q(function(){
+      return _supabaseClient.from('tutors').update({ accepting_new_students: accepting }).eq('id', tutorId);
+    });
+  }
+
   return {
     loadStudentDashboard: loadStudentDashboard,
     loadTutorDashboard:   loadTutorDashboard,
@@ -593,6 +652,10 @@ var DB = (function() {
     assignHomework:             assignHomework,
     loadNotifications:          loadNotifications,
     markAllNotificationsRead:   markAllNotificationsRead,
+    loadStudentMatches:         loadStudentMatches,
+    loadStudentHomework:        loadStudentHomework,
+    submitStudentHomework:      submitStudentHomework,
+    toggleAcceptingStudents:    toggleAcceptingStudents,
   };
 })();
 

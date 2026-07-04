@@ -1376,3 +1376,67 @@ ul { list-style: none; }
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ============================================
+   MONTH CALENDAR GRID
+   ============================================ */
+
+.cal-container { margin-bottom: 0; }
+.cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.cal-month-label { font-family: var(--font-display); font-size: 17px; font-weight: 600; color: var(--text-1); }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cal-day-hdr {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 6px 0;
+}
+.cal-cell {
+  min-height: 74px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-sm);
+  padding: 5px;
+  transition: background var(--tr);
+  overflow: hidden;
+}
+.cal-cell.has-events { cursor: pointer; }
+.cal-cell.has-events:hover { background: var(--accent-soft); border-color: rgba(107,76,59,0.2); }
+.cal-cell.other-month { opacity: 0.35; }
+.cal-cell.today { border-color: var(--accent); background: var(--accent-soft); }
+.cal-day-num { font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 3px; line-height: 1; }
+.cal-cell.today .cal-day-num { color: var(--accent); }
+.cal-pill {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  line-height: 1.5;
+}
+.cal-pill-session  { background: var(--teal-soft);  color: var(--teal); }
+.cal-pill-homework { background: var(--amber-soft); color: var(--amber); }
+.cal-pill-more { font-size: 10px; color: var(--text-3); padding: 1px 5px; display: block; }
+
+/* Submitted homework submit form styles */
+.hw-submit-form {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 12px;
+  margin-top: 8px;
+}
+
+@media (max-width: 600px) {
+  .cal-cell { min-height: 52px; padding: 3px; }
+  .cal-pill { display: none; }
+  .cal-cell.has-events::after { content: '●'; color: var(--accent); font-size: 7px; display: block; }
+  .cal-day-num { font-size: 11px; }
+}
