@@ -1086,16 +1086,28 @@ function onboardingSubmit() {
   var uid  = State.user.id;
   if (_supabaseClient && uid) {
     if (role === 'student') {
-      _supabaseClient.from('students').upsert([{
+      var studentRow = {
         id: uid,
-        subjects: data.subjects || [],
-        learning_method: data.learning_method || null,
         pace_preference: data.pace_preference || null,
-        preferred_style: data.preferred_style || null,
         grade: parseInt(data.grade, 10) || null,
         goal_description: data.goal_description ? Sanitize.text(data.goal_description, 'long') : null,
-      }], { onConflict: 'id' }).then(function(r){
-        if (r.error) console.warn('[Onboarding]', r.error);
+        subjects: data.subjects || [],
+        learning_method: data.learning_method || null,
+        preferred_style: data.preferred_style || null,
+      };
+      _supabaseClient.from('students').upsert([studentRow], { onConflict: 'id' }).then(function(r){
+        if (r.error) {
+          console.warn('[Onboarding] Full upsert failed, trying minimal insert:', r.error);
+          // Fallback: insert only columns that existed before the new migrations
+          _supabaseClient.from('students').upsert([{
+            id: uid,
+            pace_preference: data.pace_preference || null,
+            grade: parseInt(data.grade, 10) || null,
+            goal_description: data.goal_description ? Sanitize.text(data.goal_description, 'long') : null,
+          }], { onConflict: 'id' }).then(function(r2){
+            if (r2.error) console.warn('[Onboarding] Fallback insert also failed:', r2.error);
+          });
+        }
       });
     } else if (role === 'tutor') {
       _supabaseClient.from('tutors').upsert([{

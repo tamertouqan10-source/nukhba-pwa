@@ -145,12 +145,9 @@ var NukhbaAuth = (function() {
                          : data.role === 'tutor'   ? 'tutors'
                          : null;
         if (profileTable) {
-          var selectFields = data.role === 'student' ? 'id, learning_method'
-                           : data.role === 'tutor'   ? 'id, teaching_method'
-                           : 'id';
-          _supabaseClient.from(profileTable).select(selectFields).eq('id', data.id).single()
+          _supabaseClient.from(profileTable).select('*').eq('id', data.id).single()
             .then(function(pr) {
-              var hasProfile  = pr.data && !pr.error;
+              var hasProfile  = !!(pr.data && !pr.error);
               var newQuizDone = hasProfile
                 ? (data.role === 'student' ? !!pr.data.learning_method
                  : data.role === 'tutor'   ? !!pr.data.teaching_method
@@ -594,27 +591,30 @@ var DB = (function() {
     return Promise.all([
       q(function(){
         return _supabaseClient.from('students')
-          .select('subjects, learning_method, pace_preference, preferred_style')
+          .select('*')
           .eq('id', userId)
           .single();
       }),
       q(function(){
         return _supabaseClient.from('tutors')
-          .select('id, subjects, teaching_method, pace, tutor_style, bio, teacher_reference, users(full_name)')
-          .or('accepting_new_students.is.null,accepting_new_students.eq.true');
+          .select('*, users(full_name)');
       }),
     ]).then(function(results) {
       var student = results[0].data;
-      var tutors  = results[1].data || [];
-      if (!student) return [];
-      var studentSubjects = Array.isArray(student.subjects) ? student.subjects : [];
+      var allTutors = results[1].data || [];
+      // Filter out tutors who paused new students (client-side, safe if column missing)
+      var tutors = allTutors.filter(function(t){ return t.accepting_new_students !== false; });
+      if (!student) return tutors.map(function(t){ return { tutor: t, score: 0 }; });
+      // Support both old (subject/learning_style) and new (subjects/learning_method) fields
+      var studentSubjects = Array.isArray(student.subjects) ? student.subjects
+                          : (student.subject ? [student.subject] : []);
       return tutors.map(function(t) {
         var tutorSubjects = Array.isArray(t.subjects) ? t.subjects : [];
         var subjectHit    = studentSubjects.length > 0 && tutorSubjects.some(function(s){ return studentSubjects.indexOf(s) !== -1; });
         var subjectScore  = subjectHit ? 100 : 0;
-        var paceScore     = student.pace_preference && student.pace_preference === t.pace ? 100 : 0;
-        var methodScore   = student.learning_method && student.learning_method === t.teaching_method ? 100 : 0;
-        var styleScore    = student.preferred_style && student.preferred_style === t.tutor_style ? 100 : 0;
+        var paceScore     = student.pace_preference && t.pace && student.pace_preference === t.pace ? 100 : 0;
+        var methodScore   = student.learning_method && t.teaching_method && student.learning_method === t.teaching_method ? 100 : 0;
+        var styleScore    = student.preferred_style  && t.tutor_style    && student.preferred_style  === t.tutor_style    ? 100 : 0;
         var overall       = Math.round(subjectScore * 0.4 + paceScore * 0.25 + methodScore * 0.2 + styleScore * 0.15);
         return { tutor: t, score: overall };
       }).sort(function(a, b){ return b.score - a.score; });
