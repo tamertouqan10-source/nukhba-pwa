@@ -145,10 +145,18 @@ var NukhbaAuth = (function() {
                          : data.role === 'tutor'   ? 'tutors'
                          : null;
         if (profileTable) {
-          _supabaseClient.from(profileTable).select('id').eq('id', data.id).single()
+          var selectFields = data.role === 'student' ? 'id, learning_method'
+                           : data.role === 'tutor'   ? 'id, teaching_method'
+                           : 'id';
+          _supabaseClient.from(profileTable).select(selectFields).eq('id', data.id).single()
             .then(function(pr) {
-              var hasProfile = pr.data && !pr.error;
-              setUser(data.role, data.full_name, data.id, !hasProfile);
+              var hasProfile  = pr.data && !pr.error;
+              var newQuizDone = hasProfile
+                ? (data.role === 'student' ? !!pr.data.learning_method
+                 : data.role === 'tutor'   ? !!pr.data.teaching_method
+                 : true)
+                : false;
+              setUser(data.role, data.full_name, data.id, !hasProfile || !newQuizDone);
             });
         } else {
           setUser(data.role, data.full_name, data.id,
@@ -582,6 +590,37 @@ var DB = (function() {
     }).then(function(r) { return r.data || []; });
   }
 
+  function loadStudentMatchesComputed(userId) {
+    return Promise.all([
+      q(function(){
+        return _supabaseClient.from('students')
+          .select('subjects, learning_method, pace_preference, preferred_style')
+          .eq('id', userId)
+          .single();
+      }),
+      q(function(){
+        return _supabaseClient.from('tutors')
+          .select('id, subjects, teaching_method, pace, tutor_style, bio, teacher_reference, users(full_name)')
+          .or('accepting_new_students.is.null,accepting_new_students.eq.true');
+      }),
+    ]).then(function(results) {
+      var student = results[0].data;
+      var tutors  = results[1].data || [];
+      if (!student) return [];
+      var studentSubjects = Array.isArray(student.subjects) ? student.subjects : [];
+      return tutors.map(function(t) {
+        var tutorSubjects = Array.isArray(t.subjects) ? t.subjects : [];
+        var subjectHit    = studentSubjects.length > 0 && tutorSubjects.some(function(s){ return studentSubjects.indexOf(s) !== -1; });
+        var subjectScore  = subjectHit ? 100 : 0;
+        var paceScore     = student.pace_preference && student.pace_preference === t.pace ? 100 : 0;
+        var methodScore   = student.learning_method && student.learning_method === t.teaching_method ? 100 : 0;
+        var styleScore    = student.preferred_style && student.preferred_style === t.tutor_style ? 100 : 0;
+        var overall       = Math.round(subjectScore * 0.4 + paceScore * 0.25 + methodScore * 0.2 + styleScore * 0.15);
+        return { tutor: t, score: overall };
+      }).sort(function(a, b){ return b.score - a.score; });
+    });
+  }
+
   function loadStudentMatchRequests(studentId) {
     return q(function(){
       return _supabaseClient
@@ -698,8 +737,9 @@ var DB = (function() {
     assignHomework:             assignHomework,
     loadNotifications:          loadNotifications,
     markAllNotificationsRead:   markAllNotificationsRead,
-    loadStudentMatches:         loadStudentMatches,
-    loadStudentMatchRequests:   loadStudentMatchRequests,
+    loadStudentMatches:           loadStudentMatches,
+    loadStudentMatchesComputed:   loadStudentMatchesComputed,
+    loadStudentMatchRequests:     loadStudentMatchRequests,
     loadTutorMatchRequests:     loadTutorMatchRequests,
     sendMatchRequest:           sendMatchRequest,
     respondToMatchRequest:      respondToMatchRequest,

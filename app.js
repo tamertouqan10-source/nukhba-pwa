@@ -55,6 +55,7 @@ function formatTime(iso) {
 
 /* ---- ROUTER ---- */
 function navigate(page) {
+  if (State.page === 'onboarding') return;
   State.page = page;
   render();
   loadPageData(page);
@@ -342,15 +343,14 @@ function loadPageData(page) {
     },
     'student-matches': function() {
       setLoading(page, true);
-      runMatchEngine(uid).then(function() {
-        return Promise.all([
-          DB.loadStudentMatches(uid),
-          DB.loadStudentMatchRequests(uid),
-        ]);
-      }).then(function(results) {
+      Promise.all([
+        DB.loadStudentMatchesComputed(uid),
+        DB.loadStudentMatchRequests(uid),
+      ]).then(function(results) {
         State.liveData[page] = { matches: results[0], requests: results[1] };
         setLoading(page, false);
         if (State.page === page) render();
+        runMatchEngine(uid); // background analytics upsert
       }).catch(function(){ setLoading(page, false); });
     },
     'tutor-requests': function() {
@@ -1011,18 +1011,20 @@ function renderShell(navItems, pageContent, title) {
    ============================================ */
 var ONBOARDING_STEPS = {
   student: [
-    { id:'grade', title:'What grade are you in?', sub:'This helps us match you with a tutor familiar with your curriculum.', type:'choice', choices:[{label:'Grade 1–3',value:'1'},{label:'Grade 4–6',value:'4'},{label:'Grade 7–8',value:'7'},{label:'Grade 9–10',value:'9'},{label:'Grade 11–12',value:'11'}] },
-    { id:'subject', title:'What subject do you need help with?', sub:'Choose your primary focus area.', type:'choice', choices:[{label:'SAT / ACT Prep',value:'SAT/ACT'},{label:'Math',value:'Math'},{label:'Sciences',value:'Sciences'},{label:'English & Literature',value:'English'},{label:'Arabic Language',value:'Arabic'},{label:'French / Other Language',value:'Languages'}] },
-    { id:'learning_style', title:'How do you learn best?', sub:'We use this to pair you with a tutor whose teaching style matches yours.', type:'choice', choices:[{label:'Visual — diagrams and examples',value:'visual'},{label:'Auditory — explanation and discussion',value:'auditory'},{label:'Hands-on — practice problems',value:'kinesthetic'}] },
-    { id:'pace_preference', title:'What pace works best for you?', sub:'There is no wrong answer — this just helps your tutor plan sessions.', type:'choice', choices:[{label:'Slow — I need more time per concept',value:'slow'},{label:'Moderate — balanced with regular review',value:'moderate'},{label:'Fast — I pick things up quickly',value:'fast'}] },
-    { id:'goal_description', title:'What is your goal?', sub:'Describe what you want to achieve. Be as specific as you like.', type:'text', placeholder:'e.g. Improve my SAT Math score to 680 before November' },
+    { id:'subjects',        title:'Which subjects do you need help with?',    sub:'Select all that apply — we use this to match you with a tutor who specialises in these areas.',                     type:'multi',        choices:[{label:'SAT / ACT Prep',value:'SAT/ACT'},{label:'Math',value:'Math'},{label:'Sciences',value:'Sciences'},{label:'English & Literature',value:'English'},{label:'Arabic Language',value:'Arabic'},{label:'French / Other Language',value:'Languages'}] },
+    { id:'learning_method', title:'How do you learn best?',                   sub:'Your tutor will lean into this style during sessions.',                                                              type:'choice',       choices:[{label:'Visual — diagrams and worked examples',value:'visual'},{label:'Discussion — talking through problems together',value:'discussion'},{label:'Practice — lots of exercises and drills',value:'practice'}] },
+    { id:'pace_preference', title:'What learning pace works for you?',         sub:'There is no wrong answer — this helps your tutor plan sessions.',                                                    type:'choice',       choices:[{label:'Slow — I like more time per concept',value:'slow'},{label:'Moderate — balanced with regular check-ins',value:'moderate'},{label:'Fast — I pick things up quickly',value:'fast'}] },
+    { id:'preferred_style', title:'What kind of tutor helps you most?',       sub:'We match you with tutors whose personality fits how you work.',                                                       type:'choice',       choices:[{label:'Patient — re-explains until I get it, never rushes',value:'patient'},{label:'Structured — clear plan with milestones I can track',value:'structured'},{label:'Energetic — keeps me challenged and engaged',value:'energetic'}] },
+    { id:'grade',           title:'What grade are you in?',                   sub:'This helps us match you with a tutor familiar with your curriculum.',                                                 type:'choice',       choices:[{label:'Grade 1–3',value:'1'},{label:'Grade 4–6',value:'4'},{label:'Grade 7–8',value:'7'},{label:'Grade 9–10',value:'9'},{label:'Grade 11–12',value:'11'}] },
+    { id:'goal_description',title:'What is your main goal?',                  sub:'Describe what you want to achieve — the more specific, the better the match.',                                        type:'text',         placeholder:'e.g. Raise my SAT Math score from 580 to 680 before November' },
   ],
   tutor: [
-    { id:'subjects', title:'Which subjects can you teach?', sub:'Select all that apply.', type:'multi', choices:[{label:'SAT / ACT Prep',value:'SAT/ACT'},{label:'Math',value:'Math'},{label:'Sciences',value:'Sciences'},{label:'English & Literature',value:'English'},{label:'Arabic Language',value:'Arabic'},{label:'French / Other Language',value:'Languages'}] },
-    { id:'teaching_style', title:'How would you describe your teaching style?', sub:'This helps us match you with students who respond well to your approach.', type:'choice', choices:[{label:'Visual — diagrams and examples',value:'visual'},{label:'Socratic — guide students to discover answers',value:'auditory'},{label:'Structured — clear plan with practice',value:'kinesthetic'}] },
-    { id:'pace', title:'At what pace do you typically teach?', sub:'Students will be matched with you based on their own pace preference.', type:'choice', choices:[{label:'Slow — thorough and deliberate',value:'slow'},{label:'Moderate — balanced and adaptive',value:'moderate'},{label:'Fast — efficient and challenge-driven',value:'fast'}] },
-    { id:'bio', title:'Tell students about yourself', sub:'A short bio helps students and parents feel confident before the first session.', type:'text', placeholder:'e.g. I am a mathematics graduate with 3 years of tutoring experience...' },
-    { id:'teacher_reference', title:'Do you have a teacher reference?', sub:'Optional — a short recommendation from a teacher or mentor. Shown on your profile to students.', type:'text_optional', placeholder:'e.g. "Highly recommended by Dr. Smith for exceptional ability in mathematics." — leave blank to skip' },
+    { id:'subjects',        title:'Which subjects can you teach?',            sub:'Select all that apply.',                                                                                              type:'multi',        choices:[{label:'SAT / ACT Prep',value:'SAT/ACT'},{label:'Math',value:'Math'},{label:'Sciences',value:'Sciences'},{label:'English & Literature',value:'English'},{label:'Arabic Language',value:'Arabic'},{label:'French / Other Language',value:'Languages'}] },
+    { id:'teaching_method', title:'How do you prefer to teach?',              sub:'Students who match your style will be ranked higher for you.',                                                         type:'choice',       choices:[{label:'Visual — diagrams and worked examples',value:'visual'},{label:'Discussion — talking through problems together',value:'discussion'},{label:'Practice — lots of exercises and drills',value:'practice'}] },
+    { id:'pace',            title:'At what pace do you typically teach?',     sub:'Students will be matched with you based on their own pace preference.',                                               type:'choice',       choices:[{label:'Slow — thorough and deliberate',value:'slow'},{label:'Moderate — balanced and adaptive',value:'moderate'},{label:'Fast — efficient and challenge-driven',value:'fast'}] },
+    { id:'tutor_style',     title:'How would students describe you?',         sub:'This helps us match you with students whose needs fit your approach.',                                                type:'choice',       choices:[{label:'Patient — I re-explain until they get it, I never rush',value:'patient'},{label:'Structured — I follow a clear plan with milestones',value:'structured'},{label:'Energetic — I challenge students and keep sessions lively',value:'energetic'}] },
+    { id:'bio',             title:'Tell students about yourself',             sub:'A short bio helps students and parents feel confident before the first session.',                                      type:'text',         placeholder:'e.g. I am a mathematics graduate with 3 years of tutoring experience...' },
+    { id:'teacher_reference',title:'Do you have a teacher reference?',        sub:'Optional — a short recommendation from a teacher or mentor. Shown on your profile to students.',                      type:'text_optional',placeholder:'e.g. "Highly recommended by Dr. Smith for exceptional ability in mathematics." — leave blank to skip' },
   ],
   parent: [
     { id:'child_name', title:"What is your child's name?", sub:'We will use this to personalise your dashboard and progress reports.', type:'text', placeholder:'e.g. Lena' },
@@ -1084,36 +1086,37 @@ function onboardingSubmit() {
   var uid  = State.user.id;
   if (_supabaseClient && uid) {
     if (role === 'student') {
-      _supabaseClient.from('students').insert([{
+      _supabaseClient.from('students').upsert([{
         id: uid,
-        grade: parseInt(data.grade,10)||null,
-        subject: data.subject||null,
-        learning_style: data.learning_style||null,
-        pace_preference: data.pace_preference||null,
-        goal_description: Sanitize.text(data.goal_description||'','long'),
-      }]).then(function(r){
-        if (r.error) console.warn('[Onboarding]',r.error);
-        else runMatchEngine(uid);
+        subjects: data.subjects || [],
+        learning_method: data.learning_method || null,
+        pace_preference: data.pace_preference || null,
+        preferred_style: data.preferred_style || null,
+        grade: parseInt(data.grade, 10) || null,
+        goal_description: data.goal_description ? Sanitize.text(data.goal_description, 'long') : null,
+      }], { onConflict: 'id' }).then(function(r){
+        if (r.error) console.warn('[Onboarding]', r.error);
       });
     } else if (role === 'tutor') {
-      _supabaseClient.from('tutors').insert([{
+      _supabaseClient.from('tutors').upsert([{
         id: uid,
-        subjects: data.subjects||[],
-        teaching_style: data.teaching_style||null,
-        pace: data.pace||null,
-        bio: Sanitize.text(data.bio||'','long'),
-        teacher_reference: data.teacher_reference ? Sanitize.text(data.teacher_reference,'long') : null,
-      }]).then(function(r){
-        if (r.error) { console.warn('[Onboarding]',r.error); return; }
+        subjects: data.subjects || [],
+        teaching_method: data.teaching_method || null,
+        pace: data.pace || null,
+        tutor_style: data.tutor_style || null,
+        bio: Sanitize.text(data.bio || '', 'long'),
+        teacher_reference: data.teacher_reference ? Sanitize.text(data.teacher_reference, 'long') : null,
+      }], { onConflict: 'id' }).then(function(r){
+        if (r.error) { console.warn('[Onboarding]', r.error); return; }
         _supabaseClient.from('students').select('id').then(function(sr){
-          (sr.data||[]).forEach(function(s){ runMatchEngine(s.id); });
+          (sr.data || []).forEach(function(s){ runMatchEngine(s.id); });
         });
       });
     }
   }
   State.user.onboarded = true;
-  State.page = role + '-dashboard';
-  toast('Profile saved. Welcome to Nukhba.','success');
+  State.page = role === 'student' ? 'student-matches' : role + '-dashboard';
+  toast('Profile saved. Welcome to Nukhba.', 'success');
   render();
   loadPageData(State.page);
 }
@@ -1122,27 +1125,31 @@ function runMatchEngine(studentId) {
   if (!_supabaseClient || !studentId) return Promise.resolve(null);
   var student;
   return _supabaseClient.from('students')
-    .select('subject, learning_style, pace_preference')
+    .select('subjects, learning_method, pace_preference, preferred_style')
     .eq('id', studentId)
     .single()
     .then(function(sr) {
       if (sr.error || !sr.data) return null;
       student = sr.data;
-      return _supabaseClient.from('tutors').select('id, subjects, teaching_style, pace')
+      return _supabaseClient.from('tutors').select('id, subjects, teaching_method, pace, tutor_style')
         .or('accepting_new_students.is.null,accepting_new_students.eq.true');
     })
     .then(function(tr) {
       if (!tr || !student) return null;
       if (tr.error || !tr.data || !tr.data.length) return null;
+      var studentSubjects = Array.isArray(student.subjects) ? student.subjects : [];
       var scores = tr.data.map(function(t) {
-        var styleScore   = student.learning_style === t.teaching_style ? 100 : 0;
-        var paceScore    = student.pace_preference === t.pace ? 100 : 0;
-        var subjectScore = Array.isArray(t.subjects) && t.subjects.indexOf(student.subject) !== -1 ? 100 : 0;
-        var overall      = Math.round((styleScore + paceScore + subjectScore) / 3);
+        var tutorSubjects  = Array.isArray(t.subjects) ? t.subjects : [];
+        var subjectHit     = studentSubjects.length > 0 && tutorSubjects.some(function(s){ return studentSubjects.indexOf(s) !== -1; });
+        var subjectScore   = subjectHit ? 100 : 0;
+        var paceScore      = student.pace_preference && student.pace_preference === t.pace ? 100 : 0;
+        var methodScore    = student.learning_method  && student.learning_method  === t.teaching_method ? 100 : 0;
+        var styleScore     = student.preferred_style  && student.preferred_style  === t.tutor_style     ? 100 : 0;
+        var overall        = Math.round(subjectScore * 0.4 + paceScore * 0.25 + methodScore * 0.2 + styleScore * 0.15);
         return {
           student_id:    studentId,
           tutor_id:      t.id,
-          style_score:   styleScore,
+          style_score:   methodScore,
           pace_score:    paceScore,
           subject_score: subjectScore,
           overall_score: overall,
@@ -1208,7 +1215,9 @@ function renderOnboarding() {
     parts.push('<button class="btn btn-primary" onclick="onboardingNext()" style="flex:1;justify-content:center">'+(isLast?'Complete setup <i class="ti ti-check"></i>':'Continue <i class="ti ti-arrow-right"></i>')+'</button>');
   }
   parts.push('</div>');
-  parts.push('<div style="text-align:center;margin-top:16px"><span style="font-size:12px;color:var(--text-3);cursor:pointer" onclick="onboardingSubmit()">Skip for now</span></div>');
+  if (role !== 'student') {
+    parts.push('<div style="text-align:center;margin-top:16px"><span style="font-size:12px;color:var(--text-3);cursor:pointer" onclick="onboardingSubmit()">Skip for now</span></div>');
+  }
   parts.push('</div></div>');
   return parts.join('');
 }
@@ -1575,9 +1584,9 @@ function renderStudentMatches() {
   }
 
   content += matches.map(function(m, idx) {
-    var tutor    = m.tutors || {};
+    var tutor    = m.tutor  || {};
     var name     = (tutor.users && tutor.users.full_name) || 'Tutor';
-    var score    = Math.round((m.overall_score || 0) * 100);
+    var score    = m.score  || 0;
     var isTop    = idx === 0;
     var subjects = Array.isArray(tutor.subjects) ? tutor.subjects : [];
     var subHtml  = subjects.length
