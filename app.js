@@ -171,16 +171,6 @@ function loadPageData(page) {
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
-    'tutor-sessions': function() {
-      if (useCachedIfAvailable(page, 'tutor')) return;
-      setLoading(page, true);
-      DB.loadTutorDashboard(uid).then(function(data) {
-        State.liveData[page] = data;
-        setCacheTimestamp('tutor');
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
     'tutor-students': function() {
       if (useCachedIfAvailable(page, 'tutor')) return;
       setLoading(page, true);
@@ -352,8 +342,21 @@ function loadPageData(page) {
     },
     'student-matches': function() {
       setLoading(page, true);
-      DB.loadStudentMatches(uid).then(function(matches) {
-        State.liveData[page] = { matches: matches };
+      runMatchEngine(uid).then(function() {
+        return Promise.all([
+          DB.loadStudentMatches(uid),
+          DB.loadStudentMatchRequests(uid),
+        ]);
+      }).then(function(results) {
+        State.liveData[page] = { matches: results[0], requests: results[1] };
+        setLoading(page, false);
+        if (State.page === page) render();
+      }).catch(function(){ setLoading(page, false); });
+    },
+    'tutor-requests': function() {
+      setLoading(page, true);
+      DB.loadTutorMatchRequests(uid).then(function(requests) {
+        State.liveData[page] = { requests: requests };
         setLoading(page, false);
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
@@ -380,7 +383,6 @@ var PAGE_DATA_SOURCE = {
   'student-progress':  'student',
   'student-points':    'student',
   'tutor-dashboard':   'tutor',
-  'tutor-sessions':    'tutor',
   'tutor-students':    'tutor',
   'tutor-hours':       'tutor',
   'parent-dashboard':  'parent',
@@ -1020,6 +1022,7 @@ var ONBOARDING_STEPS = {
     { id:'teaching_style', title:'How would you describe your teaching style?', sub:'This helps us match you with students who respond well to your approach.', type:'choice', choices:[{label:'Visual — diagrams and examples',value:'visual'},{label:'Socratic — guide students to discover answers',value:'auditory'},{label:'Structured — clear plan with practice',value:'kinesthetic'}] },
     { id:'pace', title:'At what pace do you typically teach?', sub:'Students will be matched with you based on their own pace preference.', type:'choice', choices:[{label:'Slow — thorough and deliberate',value:'slow'},{label:'Moderate — balanced and adaptive',value:'moderate'},{label:'Fast — efficient and challenge-driven',value:'fast'}] },
     { id:'bio', title:'Tell students about yourself', sub:'A short bio helps students and parents feel confident before the first session.', type:'text', placeholder:'e.g. I am a mathematics graduate with 3 years of tutoring experience...' },
+    { id:'teacher_reference', title:'Do you have a teacher reference?', sub:'Optional — a short recommendation from a teacher or mentor. Shown on your profile to students.', type:'text_optional', placeholder:'e.g. "Highly recommended by Dr. Smith for exceptional ability in mathematics." — leave blank to skip' },
   ],
   parent: [
     { id:'child_name', title:"What is your child's name?", sub:'We will use this to personalise your dashboard and progress reports.', type:'text', placeholder:'e.g. Lena' },
@@ -1099,7 +1102,13 @@ function onboardingSubmit() {
         teaching_style: data.teaching_style||null,
         pace: data.pace||null,
         bio: Sanitize.text(data.bio||'','long'),
-      }]).then(function(r){ if(r.error) console.warn('[Onboarding]',r.error); });
+        teacher_reference: data.teacher_reference ? Sanitize.text(data.teacher_reference,'long') : null,
+      }]).then(function(r){
+        if (r.error) { console.warn('[Onboarding]',r.error); return; }
+        _supabaseClient.from('students').select('id').then(function(sr){
+          (sr.data||[]).forEach(function(s){ runMatchEngine(s.id); });
+        });
+      });
     }
   }
   State.user.onboarded = true;
@@ -1110,16 +1119,17 @@ function onboardingSubmit() {
 }
 
 function runMatchEngine(studentId) {
-  if (!_supabaseClient || !studentId) return;
+  if (!_supabaseClient || !studentId) return Promise.resolve(null);
   var student;
-  _supabaseClient.from('students')
+  return _supabaseClient.from('students')
     .select('subject, learning_style, pace_preference')
     .eq('id', studentId)
     .single()
     .then(function(sr) {
       if (sr.error || !sr.data) return null;
       student = sr.data;
-      return _supabaseClient.from('tutors').select('id, subjects, teaching_style, pace').neq('accepting_new_students', false);
+      return _supabaseClient.from('tutors').select('id, subjects, teaching_style, pace')
+        .or('accepting_new_students.is.null,accepting_new_students.eq.true');
     })
     .then(function(tr) {
       if (!tr || !student) return null;
@@ -1187,7 +1197,8 @@ function renderOnboarding() {
     });
     parts.push('</div>');
     if (step.type === 'multi') parts.push('<div style="font-size:12px;color:var(--text-3);margin-top:8px">Select all that apply</div>');
-  } else if (step.type === 'text') {
+  } else if (step.type === 'text' || step.type === 'text_optional') {
+    if (step.type === 'text_optional') parts.push('<div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Optional</div>');
     parts.push('<textarea id="onboarding-text" class="form-input" rows="4" placeholder="'+esc(step.placeholder)+'" maxlength="500" style="resize:none;line-height:1.6;font-size:14px" oninput="State.onboarding.data[\''+step.id+'\']=this.value">'+esc(data[step.id]||'')+'</textarea>');
   }
   parts.push('<div style="display:flex;gap:10px;margin-top:28px">');
@@ -1396,15 +1407,6 @@ function renderStudentPoints() {
   return renderShell(studentNav(), content, 'Points & Rewards');
 }
 
-function redeemReward(rewardId, cost) {
-  var uid = State.user && State.user.id;
-  if (!uid) return;
-  DB.requestReward(uid, rewardId, cost).then(function(r) {
-    if (r && r.error) { toast('Could not submit request. Try again.','error'); return; }
-    toast('Redemption request sent to your tutor for approval.','success');
-  });
-}
-
 function markAndJoin(sessionId, btn) {
   var url = btn.getAttribute('data-url');
   if (!url) return;
@@ -1546,12 +1548,26 @@ function renderStudentHomework() {
   return renderShell(studentNav(), content, 'Homework');
 }
 
+function sendMatchRequest(studentId, tutorId) {
+  if (!studentId || !tutorId) return;
+  DB.sendMatchRequest(studentId, tutorId).then(function(r) {
+    if (r && r.error) { toast('Could not send request. Try again.','error'); return; }
+    toast('Match request sent!','success');
+    loadPageData('student-matches');
+  }).catch(function(){ toast('Could not send request. Try again.','error'); });
+}
+
 function renderStudentMatches() {
   if (isLoading('student-matches')) return renderShell(studentNav(), Spinner(), 'Find Tutors');
-  var d       = State.liveData['student-matches'] || {};
-  var matches = d.matches || [];
+  var d        = State.liveData['student-matches'] || {};
+  var matches  = d.matches  || [];
+  var requests = d.requests || [];
+  var uid      = State.user && State.user.id;
 
-  var content = '<div class="page-header"><div><div class="page-title">Recommended tutors</div><div class="page-sub">Matched to your learning profile — browse before making a choice</div></div></div>';
+  var reqMap = {};
+  requests.forEach(function(r){ reqMap[r.tutor_id] = r; });
+
+  var content = '<div class="page-header"><div><div class="page-title">Recommended tutors</div><div class="page-sub">Matched to your learning profile — send a request to express interest</div></div></div>';
 
   if (!matches.length) {
     content += '<div class="card">'+EmptyState('ti-star','No tutor matches yet. Your profile may still be in the matching queue — check back shortly.')+'</div>';
@@ -1559,10 +1575,30 @@ function renderStudentMatches() {
   }
 
   content += matches.map(function(m, idx) {
-    var tutor = m.tutors || {};
-    var name  = (tutor.users && tutor.users.full_name) || 'Tutor';
-    var score = Math.round((m.overall_score || 0) * 100);
-    var isTop = idx === 0;
+    var tutor    = m.tutors || {};
+    var name     = (tutor.users && tutor.users.full_name) || 'Tutor';
+    var score    = Math.round((m.overall_score || 0) * 100);
+    var isTop    = idx === 0;
+    var subjects = Array.isArray(tutor.subjects) ? tutor.subjects : [];
+    var subHtml  = subjects.length
+      ? '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">' +
+        subjects.map(function(s){ return '<span style="background:var(--teal-soft);color:var(--teal);padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500">'+esc(s)+'</span>'; }).join('') +
+        '</div>'
+      : '';
+    var refHtml = tutor.teacher_reference
+      ? '<div style="font-size:12px;color:var(--text-3);font-style:italic;padding:8px 10px;background:var(--surface-2);border-radius:var(--r-sm);border-left:3px solid var(--border-2);margin-bottom:8px">'+esc(tutor.teacher_reference.slice(0,220))+'</div>'
+      : '';
+    var req = reqMap[tutor.id] || null;
+    var reqHtml;
+    if (!req) {
+      reqHtml = '<button class="btn btn-primary btn-sm" onclick="sendMatchRequest(\''+esc(uid)+'\',\''+esc(tutor.id)+'\')"><i class="ti ti-send"></i> Request match</button>';
+    } else if (req.status === 'pending') {
+      reqHtml = '<span style="display:inline-flex;align-items:center;gap:5px;color:var(--text-3);font-size:13px"><i class="ti ti-clock"></i> Request sent</span>';
+    } else if (req.status === 'accepted') {
+      reqHtml = '<span style="display:inline-flex;align-items:center;gap:5px;color:var(--teal);font-size:13px;font-weight:600"><i class="ti ti-check"></i> Matched!</span>';
+    } else {
+      reqHtml = '<button class="btn btn-secondary btn-sm" onclick="sendMatchRequest(\''+esc(uid)+'\',\''+esc(tutor.id)+'\')"><i class="ti ti-send"></i> Request again</button>';
+    }
     return '<div class="card mb-16'+(isTop?' card-hover':'')+'" style="'+(isTop?'border-color:rgba(74,140,122,0.4);':'')+'">' +
       '<div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:12px">' +
       Avatar(name,'green',44) +
@@ -1571,11 +1607,14 @@ function renderStudentMatches() {
       '<div style="font-size:15px;font-weight:600;color:var(--text-1)">'+esc(name)+'</div>' +
       (isTop ? Badge('Best match','g') : '') +
       '</div>' +
-      (tutor.subject ? '<div style="font-size:12px;color:var(--text-3);margin-bottom:6px"><i class="ti ti-book" style="font-size:11px"></i> '+esc(tutor.subject)+'</div>' : '') +
-      (tutor.bio     ? '<div style="font-size:13px;color:var(--text-2);line-height:1.6;margin-bottom:10px">'+esc(tutor.bio.slice(0,200))+(tutor.bio.length>200?'…':'')+'</div>' : '') +
+      subHtml +
+      (tutor.bio ? '<div style="font-size:13px;color:var(--text-2);line-height:1.6;margin-bottom:8px">'+esc(tutor.bio.slice(0,200))+(tutor.bio.length>200?'…':'')+'</div>' : '') +
+      refHtml +
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
       '<div style="display:inline-flex;align-items:center;gap:5px;background:var(--teal-soft);color:var(--teal);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600">' +
       '<i class="ti ti-target-arrow" style="font-size:11px"></i> '+score+'% compatibility' +
-      '</div></div></div>' +
+      '</div>' + reqHtml + '</div>' +
+      '</div></div>' +
       ProgressBar(score, score>=75?'teal':score>=50?'amber':'danger', 4) +
       '</div>';
   }).join('');
@@ -1583,7 +1622,7 @@ function renderStudentMatches() {
   content += '<div class="card" style="background:var(--accent-soft);border-color:rgba(107,76,59,0.2);margin-top:16px">';
   content += '<div style="display:flex;gap:12px;align-items:flex-start"><i class="ti ti-info-circle" style="color:var(--accent);font-size:20px;flex-shrink:0;margin-top:2px"></i>';
   content += '<div><div style="font-size:13px;font-weight:600;color:var(--text-1);margin-bottom:4px">About matching</div>';
-  content += '<div style="font-size:13px;color:var(--text-2);line-height:1.6">You\'re matched based on subject, learning style, goals, and availability. Your tutor is assigned by the program coordinator. This view shows who you\'ve been matched with.</div></div></div>';
+  content += '<div style="font-size:13px;color:var(--text-2);line-height:1.6">You\'re matched based on subject, learning style, goals, and availability. Send a request to express interest — your tutor sees it and accepts or declines.</div></div></div>';
   content += '</div>';
 
   return renderShell(studentNav(), content, 'Find Tutors');
@@ -1597,6 +1636,7 @@ function tutorNav() {
     {id:'tutor-dashboard', icon:'ti-layout-dashboard', label:'Dashboard'},
     {id:'tutor-calendar',  icon:'ti-calendar',         label:'Calendar'},
     {id:'tutor-students',  icon:'ti-users',            label:'My students'},
+    {id:'tutor-requests',  icon:'ti-user-check',       label:'Requests'},
     {id:'tutor-notes',     icon:'ti-notes',            label:'Session notes'},
     {id:'tutor-hours',     icon:'ti-clock',            label:'Hour log'},
     {id:'tutor-homework',  icon:'ti-pencil-plus',      label:'Assign Homework'},
@@ -1604,6 +1644,71 @@ function tutorNav() {
   ].map(function(i){
     return '<div class="nav-item'+(State.page===i.id?' active':'')+'" onclick="navigate(\''+i.id+'\')"><i class="ti '+i.icon+'"></i> '+i.label+'</div>';
   }).join('');
+}
+
+function respondToMatchRequest(requestId, status, studentId, tutorId) {
+  if (!requestId) return;
+  DB.respondToMatchRequest(requestId, status, studentId, tutorId).then(function(r) {
+    if (r && r.error) { toast('Could not update request. Try again.','error'); return; }
+    toast(status === 'accepted' ? 'Student matched! They\'ve been assigned to you.' : 'Request declined.', status === 'accepted' ? 'success' : 'info');
+    bustCache('tutor');
+    loadPageData('tutor-requests');
+    if (status === 'accepted') loadPageData('tutor-students');
+  }).catch(function(){ toast('Could not update request. Try again.','error'); });
+}
+
+function renderTutorRequests() {
+  if (isLoading('tutor-requests')) return renderShell(tutorNav(), Spinner(), 'Match Requests');
+  var d        = State.liveData['tutor-requests'] || {};
+  var requests = d.requests || [];
+  var pending  = requests.filter(function(r){ return r.status === 'pending'; });
+  var history  = requests.filter(function(r){ return r.status !== 'pending'; });
+
+  var content = '<div class="page-header"><div><div class="page-title">Match requests</div><div class="page-sub">Students who want to work with you — accept to be assigned as their tutor</div></div></div>';
+
+  if (!pending.length && !history.length) {
+    content += '<div class="card">'+EmptyState('ti-user-check','No match requests yet. When students express interest, their requests will appear here.')+'</div>';
+    return renderShell(tutorNav(), content, 'Match Requests');
+  }
+
+  if (pending.length) {
+    content += '<div style="font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Pending ('+pending.length+')</div>';
+    content += pending.map(function(r) {
+      var student = r.students || {};
+      var sName   = (student.users && student.users.full_name) || 'Student';
+      var grade   = student.grade ? 'Grade '+student.grade : '';
+      var subject = student.subject || '';
+      var meta    = [grade, subject].filter(Boolean).join(' · ');
+      return '<div class="card mb-12">' +
+        '<div style="display:flex;gap:12px;align-items:center">' +
+        Avatar(sName,'purple',38) +
+        '<div style="flex:1">' +
+        '<div style="font-size:14px;font-weight:600;color:var(--text-1);margin-bottom:2px">'+esc(sName)+'</div>' +
+        (meta ? '<div style="font-size:12px;color:var(--text-3)">'+esc(meta)+'</div>' : '') +
+        '</div>' +
+        '<div style="display:flex;gap:8px">' +
+        '<button class="btn btn-sm btn-secondary" onclick="respondToMatchRequest(\''+r.id+'\',\'declined\',\''+r.student_id+'\',\''+r.tutor_id+'\')"><i class="ti ti-x"></i> Decline</button>' +
+        '<button class="btn btn-sm btn-primary" onclick="respondToMatchRequest(\''+r.id+'\',\'accepted\',\''+r.student_id+'\',\''+r.tutor_id+'\')"><i class="ti ti-check"></i> Accept</button>' +
+        '</div></div></div>';
+    }).join('');
+  }
+
+  if (history.length) {
+    content += '<div style="font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin:20px 0 12px">History</div>';
+    content += history.map(function(r) {
+      var student   = r.students || {};
+      var sName     = (student.users && student.users.full_name) || 'Student';
+      var accepted  = r.status === 'accepted';
+      return '<div class="card mb-12" style="opacity:0.75">' +
+        '<div style="display:flex;gap:12px;align-items:center">' +
+        Avatar(sName,'purple',32) +
+        '<div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text-1)">'+esc(sName)+'</div></div>' +
+        (accepted ? Badge('Accepted','g') : Badge('Declined','r')) +
+        '</div></div>';
+    }).join('');
+  }
+
+  return renderShell(tutorNav(), content, 'Match Requests');
 }
 
 function renderTutorDashboard() {
@@ -1660,23 +1765,6 @@ function renderTutorDashboard() {
   content += '</button></div>';
 
   return renderShell(tutorNav(), content, 'Dashboard');
-}
-
-function renderTutorSessions() {
-  if (isLoading('tutor-sessions')) return renderShell(tutorNav(), Spinner(), 'Sessions');
-  var d = State.liveData['tutor-sessions'] || {};
-  var sessions = d.sessions || [];
-  var content = '<div class="page-header"><div><div class="page-title">Sessions</div><div class="page-sub">All your scheduled and past sessions</div></div></div>';
-  content += '<div class="card">';
-  if (sessions.length) {
-    content += sessions.map(function(s){
-      return '<div class="session-card"><div class="session-time"><div class="session-time-val">'+formatTime(s.scheduled_at)+'</div><div class="session-time-day">'+formatDate(s.scheduled_at)+'</div></div><div class="session-body"><div class="session-student">Session</div><div class="session-meta"><i class="ti ti-clock"></i>'+(s.duration_minutes||60)+' min '+StatusBadge(s.status)+'</div></div>'+(s.meeting_link&&s.status==='upcoming'?'<a class="btn btn-primary btn-sm" href="'+esc(s.meeting_link)+'" target="_blank" rel="noopener"><i class="ti ti-video"></i> Join</a>':'')+'</div>';
-    }).join('');
-  } else {
-    content += EmptyState('ti-calendar','No sessions yet.');
-  }
-  content += '</div>';
-  return renderShell(tutorNav(), content, 'Sessions');
 }
 
 function renderTutorCalendar() {
@@ -2403,7 +2491,7 @@ function render() {
     'student-points':     renderStudentPoints,
     'student-messages':   renderStudentMessages,
     'tutor-dashboard':    renderTutorDashboard,
-    'tutor-sessions':     renderTutorSessions,
+    'tutor-requests':     renderTutorRequests,
     'tutor-calendar':     renderTutorCalendar,
     'tutor-messages':     renderTutorMessages,
     'tutor-students':     renderTutorStudents,

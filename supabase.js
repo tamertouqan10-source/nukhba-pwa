@@ -575,11 +575,57 @@ var DB = (function() {
     return q(function(){
       return _supabaseClient
         .from('match_scores')
-        .select('overall_score, tutors(id, bio, subject, users(full_name))')
+        .select('overall_score, tutors(id, bio, subjects, teacher_reference, users(full_name))')
         .eq('student_id', userId)
         .order('overall_score', { ascending: false })
         .limit(10);
     }).then(function(r) { return r.data || []; });
+  }
+
+  function loadStudentMatchRequests(studentId) {
+    return q(function(){
+      return _supabaseClient
+        .from('match_requests')
+        .select('id, tutor_id, status')
+        .eq('student_id', studentId);
+    }).then(function(r) { return r.data || []; });
+  }
+
+  function loadTutorMatchRequests(tutorId) {
+    return q(function(){
+      return _supabaseClient
+        .from('match_requests')
+        .select('id, student_id, tutor_id, status, created_at, students(grade, subject, users(full_name))')
+        .eq('tutor_id', tutorId)
+        .order('created_at', { ascending: false });
+    }).then(function(r) { return r.data || []; });
+  }
+
+  function sendMatchRequest(studentId, tutorId) {
+    if (!studentId || !tutorId) return Promise.resolve({ error: 'Missing IDs' });
+    return q(function(){
+      return _supabaseClient
+        .from('match_requests')
+        .upsert([{ student_id: studentId, tutor_id: tutorId, status: 'pending', updated_at: new Date().toISOString() }], { onConflict: 'student_id,tutor_id' });
+    });
+  }
+
+  function respondToMatchRequest(requestId, newStatus, studentId, tutorId) {
+    if (!requestId) return Promise.resolve({ error: 'Missing request ID' });
+    return q(function(){
+      return _supabaseClient
+        .from('match_requests')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', requestId);
+    }).then(function(r) {
+      if ((r && r.error) || newStatus !== 'accepted') return r;
+      return q(function(){
+        return _supabaseClient
+          .from('students')
+          .update({ tutor_id: tutorId })
+          .eq('id', studentId);
+      });
+    });
   }
 
   function loadStudentHomework(userId) {
@@ -653,6 +699,10 @@ var DB = (function() {
     loadNotifications:          loadNotifications,
     markAllNotificationsRead:   markAllNotificationsRead,
     loadStudentMatches:         loadStudentMatches,
+    loadStudentMatchRequests:   loadStudentMatchRequests,
+    loadTutorMatchRequests:     loadTutorMatchRequests,
+    sendMatchRequest:           sendMatchRequest,
+    respondToMatchRequest:      respondToMatchRequest,
     loadStudentHomework:        loadStudentHomework,
     submitStudentHomework:      submitStudentHomework,
     toggleAcceptingStudents:    toggleAcceptingStudents,
