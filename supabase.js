@@ -14,27 +14,28 @@ const SUPABASE_KEY = 'sb_publishable_bvfzUDSOWBe1jnBuTqWqGw_rwTCV6gt';
 
 var _supabaseClient = null;
 
-function initSupabase() {
+function initSupabase(attempt) {
+  attempt = attempt || 1;
   try {
-    // The Supabase UMD bundle exposes createClient in different ways
-    // depending on the version. Handle all known patterns.
     var createClient = null;
     if (window.supabase && typeof window.supabase.createClient === 'function') {
-      // UMD v2 standard
       createClient = window.supabase.createClient;
     } else if (window.supabaseJs && typeof window.supabaseJs.createClient === 'function') {
       createClient = window.supabaseJs.createClient;
-    } else if (typeof createClient === 'undefined' && window.supabase) {
-      // Some builds expose the module itself as a function
+    } else if (window.supabase) {
       createClient = window.supabase;
     }
 
     if (!createClient) {
-      console.error('[Nukhba] Supabase SDK not found — check script load order');
+      if (attempt < 10) {
+        setTimeout(function() { initSupabase(attempt + 1); }, 300);
+      } else {
+        console.error('[Nukhba] Supabase SDK not found after 10 attempts — check script load order');
+      }
       return;
     }
 
-                    _supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY, {
+    _supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: {
         autoRefreshToken:   true,
         persistSession:     true,
@@ -42,7 +43,7 @@ function initSupabase() {
       }
     });
 
-    console.log('[Nukhba] Supabase connected');
+    console.log('[Nukhba] Supabase connected (attempt ' + attempt + ')');
 
     _supabaseClient.auth.getSession().then(function(result) {
       var session = result.data && result.data.session;
@@ -171,7 +172,11 @@ var NukhbaAuth = (function() {
     var password = Sanitize.password(passwordRaw);
     if (!email)    { if (onError) onError('Please enter a valid email address.'); return; }
     if (!password) { if (onError) onError('Password must be 8–128 characters.'); return; }
-    if (!_supabaseClient) { if (onError) onError('Connection unavailable. Please refresh.'); return; }
+    if (!_supabaseClient) {
+      initSupabase();
+      setTimeout(function() { signIn(emailRaw, passwordRaw, onError); }, 400);
+      return;
+    }
     _supabaseClient.auth.signInWithPassword({ email: email, password: password })
       .then(function(result) {
         if (result.error) {
@@ -207,7 +212,11 @@ var NukhbaAuth = (function() {
     if (!password) { if (onError) onError('Password must be 8–128 characters.'); return; }
     if (!fullName) { if (onError) onError('Please enter your full name.'); return; }
     if (!role)     { if (onError) onError('Please select your role.'); return; }
-    if (!_supabaseClient) { if (onError) onError('Connection unavailable. Please refresh.'); return; }
+    if (!_supabaseClient) {
+      initSupabase();
+      setTimeout(function() { signUp(emailRaw, passwordRaw, nameRaw, roleRaw, onError); }, 400);
+      return;
+    }
     _supabaseClient.auth.signUp({
       email: email,
       password: password,
@@ -263,6 +272,7 @@ var NukhbaAuth = (function() {
   function signOut() {
     Realtime.unsubscribeAll();
     if (_supabaseClient) _supabaseClient.auth.signOut();
+    try { sessionStorage.removeItem('nukhba-page'); } catch(e) {}
     State.user            = null;
     State.page            = 'landing';
     State.modal           = null;

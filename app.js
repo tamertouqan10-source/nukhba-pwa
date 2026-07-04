@@ -62,6 +62,7 @@ function navigate(page) {
     return;
   }
   State.page = page;
+  try { sessionStorage.setItem('nukhba-page', page); } catch(e) {}
   render();
   loadPageData(page);
   window.scrollTo(0,0);
@@ -95,7 +96,10 @@ function setUser(role, name, id, needsOnboarding) {
   if (needsOnboarding && role !== 'admin') {
     State.page = 'onboarding';
   } else {
-    State.page = role + '-dashboard';
+    var saved = null;
+    try { saved = sessionStorage.getItem('nukhba-page'); } catch(e) {}
+    if (saved && saved.indexOf(role + '-') === 0) State.page = saved;
+    else State.page = role + '-dashboard';
   }
   if (id) {
     Realtime.subscribeNotifications(id, function(notif) {
