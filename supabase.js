@@ -285,6 +285,37 @@ var NukhbaAuth = (function() {
   return { signIn: signIn, signUp: signUp, signOut: signOut, hydrateSession: hydrateSession };
 })();
 
+/* ---- COMPATIBILITY SCORING (shared by app.js + supabase.js) ---- */
+function computeCompatibility(student, tutor) {
+  var studentSubjects = Array.isArray(student.subjects) ? student.subjects
+                      : (student.subject ? [student.subject] : []);
+  var tutorSubjects   = Array.isArray(tutor.subjects) ? tutor.subjects : [];
+  // Subject: proportional overlap (how many of the student's subjects
+  // this tutor covers), not binary
+  var subjectScore = 0;
+  if (studentSubjects.length && tutorSubjects.length) {
+    var hits = studentSubjects.filter(function(s){ return tutorSubjects.indexOf(s) !== -1; }).length;
+    subjectScore = Math.round((hits / studentSubjects.length) * 100);
+  }
+  // Pace: exact = 100, adjacent (slow<->moderate or moderate<->fast) = 50
+  var paceOrder = { slow: 0, moderate: 1, fast: 2 };
+  var paceScore = 0;
+  if (student.pace_preference && tutor.pace &&
+      paceOrder[student.pace_preference] != null && paceOrder[tutor.pace] != null) {
+    var diff = Math.abs(paceOrder[student.pace_preference] - paceOrder[tutor.pace]);
+    paceScore = diff === 0 ? 100 : diff === 1 ? 50 : 0;
+  }
+  var methodScore = (student.learning_method && student.learning_method === tutor.teaching_method) ? 100 : 0;
+  var styleScore  = (student.preferred_style && student.preferred_style === tutor.tutor_style) ? 100 : 0;
+  return {
+    subject: subjectScore,
+    pace:    paceScore,
+    method:  methodScore,
+    style:   styleScore,
+    overall: Math.round(subjectScore * 0.45 + paceScore * 0.2 + methodScore * 0.2 + styleScore * 0.15),
+  };
+}
+
 /* ---- DB — ALL DATA LOADING & WRITES ---- */
 var DB = (function() {
 
@@ -618,18 +649,9 @@ var DB = (function() {
       // Filter out tutors who paused new students (client-side, safe if column missing)
       var tutors = allTutors.filter(function(t){ return t.accepting_new_students !== false; });
       if (!student) return tutors.map(function(t){ return { tutor: t, score: 0 }; });
-      // Support both old (subject/learning_style) and new (subjects/learning_method) fields
-      var studentSubjects = Array.isArray(student.subjects) ? student.subjects
-                          : (student.subject ? [student.subject] : []);
       return tutors.map(function(t) {
-        var tutorSubjects = Array.isArray(t.subjects) ? t.subjects : [];
-        var subjectHit    = studentSubjects.length > 0 && tutorSubjects.some(function(s){ return studentSubjects.indexOf(s) !== -1; });
-        var subjectScore  = subjectHit ? 100 : 0;
-        var paceScore     = student.pace_preference && t.pace && student.pace_preference === t.pace ? 100 : 0;
-        var methodScore   = student.learning_method && t.teaching_method && student.learning_method === t.teaching_method ? 100 : 0;
-        var styleScore    = student.preferred_style  && t.tutor_style    && student.preferred_style  === t.tutor_style    ? 100 : 0;
-        var overall       = Math.round(subjectScore * 0.4 + paceScore * 0.25 + methodScore * 0.2 + styleScore * 0.15);
-        return { tutor: t, score: overall };
+        var c = computeCompatibility(student, t);
+        return { tutor: t, score: c.overall, breakdown: c };
       }).sort(function(a, b){ return b.score - a.score; });
     });
   }
@@ -659,6 +681,17 @@ var DB = (function() {
       return _supabaseClient
         .from('match_requests')
         .upsert([{ student_id: studentId, tutor_id: tutorId, status: 'pending', updated_at: new Date().toISOString() }], { onConflict: 'student_id,tutor_id' });
+    });
+  }
+
+  function cancelMatchRequest(studentId, tutorId) {
+    if (!studentId || !tutorId) return Promise.resolve({ error: 'Missing IDs' });
+    return q(function(){
+      return _supabaseClient.from('match_requests')
+        .delete()
+        .eq('student_id', studentId)
+        .eq('tutor_id', tutorId)
+        .eq('status', 'pending');
     });
   }
 
@@ -795,6 +828,7 @@ var DB = (function() {
     loadStudentMatchRequests:     loadStudentMatchRequests,
     loadTutorMatchRequests:     loadTutorMatchRequests,
     sendMatchRequest:           sendMatchRequest,
+    cancelMatchRequest:         cancelMatchRequest,
     respondToMatchRequest:      respondToMatchRequest,
     loadStudentHomework:        loadStudentHomework,
     submitStudentHomework:      submitStudentHomework,

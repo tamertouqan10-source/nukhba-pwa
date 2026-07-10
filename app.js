@@ -12,6 +12,7 @@ const State = {
   dataTimestamps:   {},   // { source: timestampMs } for 30-second cache
   notifications:    [],   // In-app notifications for current user
   gated:            false,
+  matchOverlayOpen: false,
   onboarding:       { step: 1, data: {} },
   checklistChecked: new Set(),
   calState:         {},   // { [calKey]: { y, m } } for month calendar navigation
@@ -57,10 +58,6 @@ function formatTime(iso) {
 /* ---- ROUTER ---- */
 function navigate(page) {
   if (State.page === 'onboarding') return;
-  if (State.gated && State.user && State.user.role === 'student' && page !== 'student-matches') {
-    toast('Apply to at least one tutor to unlock the rest of your portal.', 'info');
-    return;
-  }
   State.page = page;
   try { sessionStorage.setItem('nukhba-page', page); } catch(e) {}
   render();
@@ -359,7 +356,7 @@ function loadPageData(page) {
       ]).then(function(results) {
         State.liveData[page] = { matches: results[0], requests: results[1] };
         setLoading(page, false);
-        if (State.page === page) render();
+        if (State.page === page || State.matchOverlayOpen) render();
         runMatchEngine(uid); // background analytics upsert
       }).catch(function(){ setLoading(page, false); });
     },
@@ -449,10 +446,10 @@ function checkStudentGate() {
     var hasRequest = (results[1].count || 0) > 0;
     var wasGated   = State.gated;
     State.gated = !hasTutor && !hasRequest;
-    if (State.gated && State.page !== 'onboarding') {
-      State.page = 'student-matches';
+    if (State.gated) {
+      State.matchOverlayOpen = true;
       render();
-      loadPageData('student-matches');
+      if (!State.liveData['student-matches']) loadPageData('student-matches');
     } else if (wasGated !== State.gated) {
       render();
     }
@@ -1196,11 +1193,12 @@ function onboardingSubmit() {
     }
   }
   State.user.onboarded = true;
-  if (role === 'student') State.gated = true;
-  State.page = role === 'student' ? 'student-matches' : role + '-dashboard';
+  if (role === 'student') { State.gated = true; State.matchOverlayOpen = true; }
+  State.page = role + '-dashboard';
   toast('Profile saved. Welcome to Nukhba.', 'success');
   render();
   loadPageData(State.page);
+  if (role === 'student') loadPageData('student-matches');
 }
 
 function runMatchEngine(studentId) {
@@ -1219,22 +1217,15 @@ function runMatchEngine(studentId) {
     .then(function(tr) {
       if (!tr || !student) return null;
       if (tr.error || !tr.data || !tr.data.length) return null;
-      var studentSubjects = Array.isArray(student.subjects) ? student.subjects : [];
       var scores = tr.data.map(function(t) {
-        var tutorSubjects  = Array.isArray(t.subjects) ? t.subjects : [];
-        var subjectHit     = studentSubjects.length > 0 && tutorSubjects.some(function(s){ return studentSubjects.indexOf(s) !== -1; });
-        var subjectScore   = subjectHit ? 100 : 0;
-        var paceScore      = student.pace_preference && student.pace_preference === t.pace ? 100 : 0;
-        var methodScore    = student.learning_method  && student.learning_method  === t.teaching_method ? 100 : 0;
-        var styleScore     = student.preferred_style  && student.preferred_style  === t.tutor_style     ? 100 : 0;
-        var overall        = Math.round(subjectScore * 0.4 + paceScore * 0.25 + methodScore * 0.2 + styleScore * 0.15);
+        var c = computeCompatibility(student, t);
         return {
           student_id:    studentId,
           tutor_id:      t.id,
-          style_score:   methodScore,
-          pace_score:    paceScore,
-          subject_score: subjectScore,
-          overall_score: overall,
+          style_score:   c.method,
+          pace_score:    c.pace,
+          subject_score: c.subject,
+          overall_score: c.overall,
         };
       });
       return _supabaseClient.from('match_scores').upsert(scores, { onConflict: 'student_id,tutor_id' });
@@ -1306,15 +1297,8 @@ function studentNav() {
     {id:'student-messages',  icon:'ti-message-2',         label:'Messages'},
   ];
   var html = items.map(function(i){
-    var locked = State.gated && i.id !== 'student-matches';
-    if (locked) {
-      return '<div class="nav-item" style="opacity:0.4;cursor:not-allowed"><i class="ti '+i.icon+'"></i> '+i.label+' <i class="ti ti-lock" style="margin-left:auto;font-size:13px"></i></div>';
-    }
     return '<div class="nav-item'+(State.page===i.id?' active':'')+'" onclick="navigate(\''+i.id+'\')"><i class="ti '+i.icon+'"></i> '+i.label+'</div>';
   }).join('');
-  if (State.gated) {
-    html += '<div style="margin:10px 8px 0;padding:10px 12px;background:var(--amber-soft);border-radius:var(--r-md);font-size:11px;color:var(--amber);line-height:1.5"><i class="ti ti-lock" style="font-size:12px"></i> Apply to a tutor to unlock your portal</div>';
-  }
   return html;
 }
 
@@ -1638,14 +1622,45 @@ function sendMatchRequest(studentId, tutorId) {
   DB.sendMatchRequest(studentId, tutorId).then(function(r) {
     if (r && r.error) { toast('Could not send request. Try again.','error'); return; }
     toast('Match request sent!','success');
-    if (State.gated) { State.gated = false; }
+    if (State.gated) {
+      State.gated = false;
+      var closeBtn = document.getElementById('match-overlay-close');
+      if (closeBtn) {
+        closeBtn.disabled = false;
+        closeBtn.style.opacity = '1';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.title = 'Continue to your portal';
+        toast('Request sent! You can now continue to your portal.','success');
+      }
+    }
     loadPageData('student-matches');
-    render();
   }).catch(function(){ toast('Could not send request. Try again.','error'); });
+}
+
+function closeMatchOverlay() {
+  State.matchOverlayOpen = false;
+  var ov = document.getElementById('match-overlay');
+  if (ov) ov.remove();
+}
+
+function withdrawMatchRequest(studentId, tutorId) {
+  DB.cancelMatchRequest(studentId, tutorId).then(function(r) {
+    if (r && r.error) { toast('Could not withdraw request.','error'); return; }
+    toast('Request withdrawn.','info');
+    loadPageData('student-matches');
+    checkStudentGate();
+  }).catch(function(){ toast('Could not withdraw request.','error'); });
 }
 
 function renderStudentMatches() {
   if (isLoading('student-matches')) return renderShell(studentNav(), Spinner(), 'Find Tutors');
+  var content = '<div class="page-header"><div><div class="page-title">Recommended tutors</div><div class="page-sub">Matched to your learning profile — send a request to express interest</div></div></div>';
+  content += buildMatchCards();
+  return renderShell(studentNav(), content, 'Find Tutors');
+}
+
+function buildMatchCards() {
+  if (isLoading('student-matches')) return Spinner();
   var d        = State.liveData['student-matches'] || {};
   var matches  = d.matches  || [];
   var requests = d.requests || [];
@@ -1654,7 +1669,7 @@ function renderStudentMatches() {
   var reqMap = {};
   requests.forEach(function(r){ reqMap[r.tutor_id] = r; });
 
-  var content = '<div class="page-header"><div><div class="page-title">Recommended tutors</div><div class="page-sub">Matched to your learning profile — send a request to express interest</div></div></div>';
+  var content = '';
 
   if (State.gated) {
     content += '<div class="alert-item warn mb-16"><i class="ti ti-lock alert-icon" style="color:var(--amber)"></i><div><div class="alert-title">Choose at least one tutor to apply to</div><div class="alert-body">You can request more than one — your portal unlocks as soon as you send your first request.</div></div></div>';
@@ -1662,7 +1677,7 @@ function renderStudentMatches() {
 
   if (!matches.length) {
     content += '<div class="card">'+EmptyState('ti-star','No tutor matches yet. Your profile may still be in the matching queue — check back shortly.')+'</div>';
-    return renderShell(studentNav(), content, 'Find Tutors');
+    return content;
   }
 
   content += matches.map(function(m, idx) {
@@ -1684,12 +1699,18 @@ function renderStudentMatches() {
     if (!req) {
       reqHtml = '<button class="btn btn-primary btn-sm" onclick="sendMatchRequest(\''+esc(uid)+'\',\''+esc(tutor.id)+'\')"><i class="ti ti-send"></i> Request match</button>';
     } else if (req.status === 'pending') {
-      reqHtml = '<span style="display:inline-flex;align-items:center;gap:5px;color:var(--text-3);font-size:13px"><i class="ti ti-clock"></i> Request sent</span>';
+      reqHtml = '<span style="display:inline-flex;align-items:center;gap:5px;color:var(--text-3);font-size:13px"><i class="ti ti-clock"></i> Request sent</span>'
+        + ' <button class="btn btn-ghost btn-sm" onclick="withdrawMatchRequest(\''+esc(uid)+'\',\''+esc(tutor.id)+'\')" style="color:var(--danger)"><i class="ti ti-x"></i> Withdraw</button>';
     } else if (req.status === 'accepted') {
       reqHtml = '<span style="display:inline-flex;align-items:center;gap:5px;color:var(--teal);font-size:13px;font-weight:600"><i class="ti ti-check"></i> Matched!</span>';
     } else {
       reqHtml = '<button class="btn btn-secondary btn-sm" onclick="sendMatchRequest(\''+esc(uid)+'\',\''+esc(tutor.id)+'\')"><i class="ti ti-send"></i> Request again</button>';
     }
+    var breakdownHtml = m.breakdown
+      ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;font-size:10px;color:var(--text-3)">'
+        + 'Subjects '+m.breakdown.subject+'% · Pace '+m.breakdown.pace+'% · Style '+m.breakdown.method+'% · Personality '+m.breakdown.style+'%'
+        + '</div>'
+      : '';
     return '<div class="card mb-16'+(isTop?' card-hover':'')+'" style="'+(isTop?'border-color:rgba(74,140,122,0.4);':'')+'">' +
       '<div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:12px">' +
       Avatar(name,'green',44) +
@@ -1705,6 +1726,7 @@ function renderStudentMatches() {
       '<div style="display:inline-flex;align-items:center;gap:5px;background:var(--teal-soft);color:var(--teal);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600">' +
       '<i class="ti ti-target-arrow" style="font-size:11px"></i> '+score+'% compatibility' +
       '</div>' + reqHtml + '</div>' +
+      breakdownHtml +
       '</div></div>' +
       ProgressBar(score, score>=75?'teal':score>=50?'amber':'danger', 4) +
       '</div>';
@@ -1716,7 +1738,7 @@ function renderStudentMatches() {
   content += '<div style="font-size:13px;color:var(--text-2);line-height:1.6">You\'re matched based on subject, learning style, goals, and availability. Send a request to express interest — your tutor sees it and accepts or declines.</div></div></div>';
   content += '</div>';
 
-  return renderShell(studentNav(), content, 'Find Tutors');
+  return content;
 }
 
 /* ============================================
@@ -2641,6 +2663,24 @@ function render() {
 
   var fn = pageMap[State.page] || renderLanding;
   app.innerHTML = fn();
+
+  // Full-screen tutor-matching overlay for gated students
+  if (State.matchOverlayOpen && State.user && State.user.role === 'student' && State.page !== 'onboarding') {
+    var closeDisabled = State.gated;
+    var overlay = '<div id="match-overlay" style="position:fixed;inset:0;z-index:500;background:var(--bg);overflow-y:auto">';
+    overlay += '<div style="max-width:760px;margin:0 auto;padding:32px 20px">';
+    overlay += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
+    overlay += '<div style="font-family:var(--font-display);font-size:28px;font-weight:600;color:var(--text-1)">Choose your tutor</div>';
+    overlay += '<button id="match-overlay-close" class="btn btn-icon btn-secondary" onclick="closeMatchOverlay()"'
+      + (closeDisabled ? ' disabled style="opacity:0.35;cursor:not-allowed" title="Send at least one request first"'
+                       : ' style="opacity:1;cursor:pointer" title="Continue to your portal"')
+      + '><i class="ti ti-x"></i></button>';
+    overlay += '</div>';
+    overlay += '<div style="font-size:14px;color:var(--text-2);margin-bottom:20px">Apply to at least one tutor to continue. You can apply to several — you\'ll be matched when a tutor accepts.</div>';
+    overlay += '<div id="match-overlay-body">' + buildMatchCards() + '</div>';
+    overlay += '</div></div>';
+    app.insertAdjacentHTML('beforeend', overlay);
+  }
 
   // Inject login modal
   if (State.modal === 'login') {
