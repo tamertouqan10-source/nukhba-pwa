@@ -328,7 +328,7 @@ var DB = (function() {
 
   function loadStudentDashboard(userId) {
     return Promise.all([
-      q(function(){ return _supabaseClient.from('students').select('*, users(full_name)').eq('id', userId).single(); }),
+      q(function(){ return _supabaseClient.from('students').select('*, users!students_id_fkey(full_name)').eq('id', userId).single(); }),
       q(function(){ return _supabaseClient.from('sessions').select('*').eq('student_id', userId).order('scheduled_at', { ascending: false }).limit(10); }),
       q(function(){ return _supabaseClient.from('skill_map').select('*').eq('student_id', userId).order('subject'); }),
       q(function(){ return _supabaseClient.from('points_transactions').select('*').eq('student_id', userId).order('created_at', { ascending: false }).limit(20); }),
@@ -347,8 +347,8 @@ var DB = (function() {
   function loadTutorDashboard(userId) {
     return Promise.all([
       q(function(){ return _supabaseClient.from('tutors').select('*, users(full_name)').eq('id', userId).single(); }),
-      q(function(){ return _supabaseClient.from('students').select('*, users(full_name), sessions(count)').eq('tutor_id', userId); }),
-      q(function(){ return _supabaseClient.from('sessions').select('*, students(users(full_name))').eq('tutor_id', userId).order('scheduled_at', { ascending: false }).limit(20); }),
+      q(function(){ return _supabaseClient.from('students').select('*, users!students_id_fkey(full_name), sessions(count)').eq('tutor_id', userId); }),
+      q(function(){ return _supabaseClient.from('sessions').select('*, students(users!students_id_fkey(full_name))').eq('tutor_id', userId).order('scheduled_at', { ascending: false }).limit(20); }),
       q(function(){ return _supabaseClient.from('tutor_hours').select('*').eq('tutor_id', userId).order('session_date', { ascending: false }); }),
     ]).then(function(results) {
       return {
@@ -361,15 +361,15 @@ var DB = (function() {
   }
 
   function loadParentDashboard(userId) {
-    return q(function(){ return _supabaseClient.from('students').select('*, users(full_name), skill_map(*), sessions(*)').eq('parent_id', userId); })
+    return q(function(){ return _supabaseClient.from('students').select('*, users!students_id_fkey(full_name), skill_map(*), sessions(*)').eq('parent_id', userId); })
       .then(function(r) { return { students: r.data || [] }; });
   }
 
   function loadAdminDashboard() {
     return Promise.all([
       q(function(){ return _supabaseClient.from('users').select('id, full_name, role, is_approved, created_at').order('created_at', { ascending: false }); }),
-      q(function(){ return _supabaseClient.from('sessions').select('*, students(id, users(full_name)), tutors(id, users(full_name))').gte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(20); }),
-      q(function(){ return _supabaseClient.from('reward_requests').select('*, students(id, users(full_name), points_balance), rewards(name, cost_points)').eq('status', 'pending').order('created_at', { ascending: false }); }),
+      q(function(){ return _supabaseClient.from('sessions').select('*, students(id, users!students_id_fkey(full_name)), tutors(id, users(full_name))').gte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(20); }),
+      q(function(){ return _supabaseClient.from('reward_requests').select('*, students(id, users!students_id_fkey(full_name), points_balance), rewards(name, cost_points)').eq('status', 'pending').order('created_at', { ascending: false }); }),
       q(function(){ return _supabaseClient.from('tutor_hours').select('tutor_id, session_date, hours_logged, tutors(users(full_name))'); }),
     ]).then(function(results) {
       return {
@@ -541,9 +541,9 @@ var DB = (function() {
     var startIso  = rangeStart.toISOString();
     var startDate = startIso.split('T')[0];
     return Promise.all([
-      q(function(){ return _supabaseClient.from('students').select('id, users(full_name)').eq('tutor_id', userId); }),
-      q(function(){ return _supabaseClient.from('sessions').select('*, students(users(full_name))').eq('tutor_id', userId).gte('scheduled_at', startIso).order('scheduled_at').limit(100); }),
-      q(function(){ return _supabaseClient.from('homework').select('id, title, due_date, status, students(users(full_name))').eq('tutor_id', userId).gte('due_date', startDate).order('due_date').limit(50); }),
+      q(function(){ return _supabaseClient.from('students').select('id, users!students_id_fkey(full_name)').eq('tutor_id', userId); }),
+      q(function(){ return _supabaseClient.from('sessions').select('*, students(users!students_id_fkey(full_name))').eq('tutor_id', userId).gte('scheduled_at', startIso).order('scheduled_at').limit(100); }),
+      q(function(){ return _supabaseClient.from('homework').select('id, title, due_date, status, students(users!students_id_fkey(full_name))').eq('tutor_id', userId).gte('due_date', startDate).order('due_date').limit(50); }),
     ]).then(function(results) {
       return {
         students: results[0].data || [],
@@ -572,8 +572,8 @@ var DB = (function() {
 
   function loadTutorHomework(userId) {
     return Promise.all([
-      q(function(){ return _supabaseClient.from('students').select('id, users(full_name)').eq('tutor_id', userId); }),
-      q(function(){ return _supabaseClient.from('homework').select('*, students(id, users(full_name))').eq('tutor_id', userId).order('created_at', { ascending: false }).limit(20); }),
+      q(function(){ return _supabaseClient.from('students').select('id, users!students_id_fkey(full_name)').eq('tutor_id', userId); }),
+      q(function(){ return _supabaseClient.from('homework').select('*, students(id, users!students_id_fkey(full_name))').eq('tutor_id', userId).order('created_at', { ascending: false }).limit(20); }),
     ]).then(function(results) {
       return {
         students: results[0].data || [],
@@ -671,7 +671,7 @@ var DB = (function() {
     return q(function(){
       return _supabaseClient
         .from('match_requests')
-        .select('id, student_id, tutor_id, status, created_at, students(grade, subjects, users(full_name))')
+        .select('id, student_id, tutor_id, status, created_at, students(grade, subjects, users!students_id_fkey(full_name))')
         .eq('tutor_id', tutorId)
         .order('created_at', { ascending: false });
     }).then(function(r) { return r.data || []; });
@@ -789,7 +789,7 @@ var DB = (function() {
   function loadTutorRecipients(tutorId) {
     return q(function(){
       return _supabaseClient.from('students')
-        .select('id, parent_id, users(full_name)')
+        .select('id, parent_id, users!students_id_fkey(full_name)')
         .eq('tutor_id', tutorId);
     }).then(function(r) {
       var students = r.data || [];
