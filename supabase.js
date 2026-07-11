@@ -644,6 +644,8 @@ var DB = (function() {
           .select('*, users(full_name)');
       }),
     ]).then(function(results) {
+      if (results[0].error) console.warn('[Match] student profile read failed:', results[0].error);
+      if (results[1].error) console.warn('[Match] tutors read failed:', results[1].error);
       var student = results[0].data;
       var allTutors = results[1].data || [];
       // Filter out tutors who paused new students (client-side, safe if column missing)
