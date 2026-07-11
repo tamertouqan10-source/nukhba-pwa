@@ -1336,7 +1336,7 @@ function renderStudentDashboard() {
     content += '<div class="card mb-24"><div class="card-title">Next session</div>';
     content += '<div class="session-card" style="background:var(--accent-soft);border-color:rgba(107,76,59,0.3)">';
     content += '<div class="session-time"><div class="session-time-val">'+formatTime(next.scheduled_at)+'</div><div class="session-time-day">'+formatDate(next.scheduled_at)+'</div></div>';
-    content += '<div class="session-body"><div class="session-student">'+esc(s.subject||'Session')+'</div>';
+    content += '<div class="session-body"><div class="session-student">'+esc((Array.isArray(s.subjects) && s.subjects.length ? s.subjects.join(', ') : 'Session'))+'</div>';
     content += '<div class="session-meta"><i class="ti ti-clock"></i> '+(next.duration_minutes||60)+' min <i class="ti ti-video"></i> Online</div></div>';
     content += '<div class="flex gap-8">';
     if (next.meeting_link) content += '<button class="btn btn-primary btn-sm" onclick="markAndJoin(\''+next.id+'\',this)" data-url="'+esc(next.meeting_link)+'"><i class="ti ti-video"></i> Join</button>';
@@ -1396,7 +1396,7 @@ function renderStudentProgress() {
   var s      = d.student || {};
   var skills = d.skills  || [];
 
-  var content = '<div class="page-header"><div><div class="page-title">My progress</div><div class="page-sub">'+(s.subject?esc(s.subject)+' · ':'')+(s.goal_description?esc(s.goal_description):'')+'</div></div></div>';
+  var content = '<div class="page-header"><div><div class="page-title">My progress</div><div class="page-sub">'+(Array.isArray(s.subjects) && s.subjects.length?esc(s.subjects.join(', '))+' · ':'')+(s.goal_description?esc(s.goal_description):'')+'</div></div></div>';
 
   var mastered   = skills.filter(function(sk){ return sk.status==='mastered'; }).length;
   var inProgress = skills.filter(function(sk){ return sk.status==='progress'; }).length;
@@ -1790,7 +1790,7 @@ function renderTutorRequests() {
       var student = r.students || {};
       var sName   = (student.users && student.users.full_name) || 'Student';
       var grade   = student.grade ? 'Grade '+student.grade : '';
-      var subject = student.subject || '';
+      var subject = (Array.isArray(student.subjects) && student.subjects.length) ? student.subjects.join(', ') : '';
       var meta    = [grade, subject].filter(Boolean).join(' · ');
       return '<div class="card mb-12">' +
         '<div style="display:flex;gap:12px;align-items:center">' +
@@ -1861,7 +1861,7 @@ function renderTutorDashboard() {
   if (students.length) {
     content += students.map(function(s){
       var sName = (s.users && s.users.full_name) || 'Student';
-      return '<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border-2)">'+Avatar(sName,'purple',36)+'<div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text-1);margin-bottom:2px">'+esc(sName)+'</div><div style="font-size:11px;color:var(--text-3)">'+(s.subject?esc(s.subject)+' · ':'')+('Grade '+(s.grade||'—'))+'</div></div></div>';
+      return '<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border-2)">'+Avatar(sName,'purple',36)+'<div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text-1);margin-bottom:2px">'+esc(sName)+'</div><div style="font-size:11px;color:var(--text-3)">'+(Array.isArray(s.subjects) && s.subjects.length?esc(s.subjects.join(', '))+' · ':'')+('Grade '+(s.grade||'—'))+'</div></div></div>';
     }).join('');
   } else {
     content += EmptyState('ti-users','No students assigned yet.');
@@ -2029,7 +2029,7 @@ function renderTutorStudents() {
     content += '<div class="table-wrap"><table class="table"><thead><tr><th>Student</th><th>Subject</th><th>Grade</th><th>Goal</th></tr></thead><tbody>';
     content += students.map(function(s){
       var sName = (s.users && s.users.full_name) || 'Student';
-      return '<tr><td class="table-name">'+Avatar(sName,'purple',30)+'<div><div style="font-size:13px;font-weight:600">'+esc(sName)+'</div></div></td><td>'+(s.subject?esc(s.subject):'—')+'</td><td>'+(s.grade||'—')+'</td><td style="max-width:200px;font-size:12px;color:var(--text-2)">'+(s.goal_description?esc(s.goal_description.slice(0,60))+(s.goal_description.length>60?'…':''):'—')+'</td></tr>';
+      return '<tr><td class="table-name">'+Avatar(sName,'purple',30)+'<div><div style="font-size:13px;font-weight:600">'+esc(sName)+'</div></div></td><td>'+(Array.isArray(s.subjects) && s.subjects.length?esc(s.subjects.join(', ')):'—')+'</td><td>'+(s.grade||'—')+'</td><td style="max-width:200px;font-size:12px;color:var(--text-2)">'+(s.goal_description?esc(s.goal_description.slice(0,60))+(s.goal_description.length>60?'…':''):'—')+'</td></tr>';
     }).join('');
     content += '</tbody></table></div>';
   } else {

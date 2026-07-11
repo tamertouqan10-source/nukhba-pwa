@@ -671,7 +671,7 @@ var DB = (function() {
     return q(function(){
       return _supabaseClient
         .from('match_requests')
-        .select('id, student_id, tutor_id, status, created_at, students(grade, subject, users(full_name))')
+        .select('id, student_id, tutor_id, status, created_at, students(grade, subjects, users(full_name))')
         .eq('tutor_id', tutorId)
         .order('created_at', { ascending: false });
     }).then(function(r) { return r.data || []; });
