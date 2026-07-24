@@ -116,238 +116,81 @@ function loadPageData(page) {
   var uid  = State.user.id;
   var role = State.user.role;
 
-  var loaders = {
-    'student-dashboard': function() {
-      if (useCachedIfAvailable(page, 'student')) return;
+  // Fetches `source`-cached data via fetchFn(uid), optionally reshaped by `transform`.
+  function simpleLoader(source, fetchFn, transform) {
+    return function() {
+      if (useCachedIfAvailable(page, source)) return;
       setLoading(page, true);
-      DB.loadStudentDashboard(uid).then(function(data) {
-        State.liveData[page] = data;
-        setCacheTimestamp('student');
+      fetchFn(uid).then(function(data) {
+        State.liveData[page] = transform ? transform(data) : data;
+        setCacheTimestamp(source);
         setLoading(page, false);
         if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
-    },
-    'student-sessions': function() {
-      if (useCachedIfAvailable(page, 'student')) return;
+    };
+  }
+
+  // Same as simpleLoader, plus a live message subscription once the initial fetch lands.
+  function messagesLoader(source, fetchAll, transform) {
+    return function() {
+      if (useCachedIfAvailable(page, source)) return;
       setLoading(page, true);
-      DB.loadStudentDashboard(uid).then(function(data) {
-        State.liveData[page] = data;
-        setCacheTimestamp('student');
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'student-progress': function() {
-      if (useCachedIfAvailable(page, 'student')) return;
-      setLoading(page, true);
-      DB.loadStudentDashboard(uid).then(function(data) {
-        State.liveData[page] = data;
-        setCacheTimestamp('student');
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'student-points': function() {
-      if (useCachedIfAvailable(page, 'student')) return;
-      setLoading(page, true);
-      DB.loadStudentDashboard(uid).then(function(data) {
-        State.liveData[page] = data;
-        setCacheTimestamp('student');
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'student-messages': function() {
-      setLoading(page, true);
-      Promise.all([DB.loadMessages(uid), DB.getStudentTutorId(uid)])
-        .then(function(results) {
-          State.liveData[page] = { messages: results[0], tutorId: results[1] };
-          setLoading(page, false);
-          if (State.page === page) render();
-          Realtime.subscribeMessages(uid, function(msg) {
-            var d = State.liveData['student-messages'];
-            if (d && d.messages) d.messages.unshift(msg);
-            if (State.page === 'student-messages') render();
-          });
-        }).catch(function(){ setLoading(page, false); });
-    },
-    'tutor-dashboard': function() {
-      if (useCachedIfAvailable(page, 'tutor')) return;
-      setLoading(page, true);
-      DB.loadTutorDashboard(uid).then(function(data) {
-        State.liveData[page] = data;
-        setCacheTimestamp('tutor');
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'tutor-students': function() {
-      if (useCachedIfAvailable(page, 'tutor')) return;
-      setLoading(page, true);
-      DB.loadTutorDashboard(uid).then(function(data) {
-        State.liveData[page] = data;
-        setCacheTimestamp('tutor');
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'tutor-hours': function() {
-      if (useCachedIfAvailable(page, 'tutor')) return;
-      setLoading(page, true);
-      DB.loadTutorDashboard(uid).then(function(data) {
-        State.liveData[page] = data;
-        setCacheTimestamp('tutor');
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'parent-dashboard': function() {
-      if (useCachedIfAvailable(page, 'parent')) return;
-      setLoading(page, true);
-      DB.loadParentDashboard(uid).then(function(data) {
-        State.liveData[page] = data;
-        setCacheTimestamp('parent');
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'admin-dashboard': function() {
-      if (useCachedIfAvailable(page, 'admin')) return;
-      setLoading(page, true);
-      DB.loadAdminDashboard().then(function(data) {
-        State.liveData[page] = data;
-        setCacheTimestamp('admin');
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'admin-students': function() {
-      if (useCachedIfAvailable(page, 'admin')) return;
-      setLoading(page, true);
-      DB.loadAdminDashboard().then(function(data) {
-        State.liveData[page] = data;
-        setCacheTimestamp('admin');
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'admin-approvals': function() {
-      if (useCachedIfAvailable(page, 'admin')) return;
-      setLoading(page, true);
-      DB.loadAdminDashboard().then(function(data) {
-        State.liveData[page] = data;
-        setCacheTimestamp('admin');
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'admin-hours': function() {
-      if (useCachedIfAvailable(page, 'admin')) return;
-      setLoading(page, true);
-      DB.loadAdminDashboard().then(function(data) {
-        State.liveData[page] = data;
-        setCacheTimestamp('admin');
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'admin-tutors': function() {
-      if (useCachedIfAvailable(page, 'admin')) return;
-      setLoading(page, true);
-      DB.loadAdminDashboard().then(function(data) {
-        State.liveData[page] = data;
-        setCacheTimestamp('admin');
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'parent-progress': function() {
-      if (useCachedIfAvailable(page, 'parent')) return;
-      setLoading(page, true);
-      DB.loadParentDashboard(uid).then(function(data) {
-        State.liveData[page] = data;
-        setCacheTimestamp('parent');
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'parent-sessions': function() {
-      if (useCachedIfAvailable(page, 'parent')) return;
-      setLoading(page, true);
-      DB.loadParentDashboard(uid).then(function(data) {
-        State.liveData[page] = data;
-        setCacheTimestamp('parent');
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'parent-messages': function() {
-      setLoading(page, true);
-      Promise.all([
-        DB.loadMessages(uid),
-        DB.loadParentDashboard(uid),
-      ]).then(function(results) {
-        var child = (results[1].students || [])[0] || {};
-        State.liveData[page] = { messages: results[0], tutorId: child.tutor_id || null };
+      fetchAll().then(function(results) {
+        State.liveData[page] = transform(results);
+        setCacheTimestamp(source);
         setLoading(page, false);
         if (State.page === page) render();
         Realtime.subscribeMessages(uid, function(msg) {
-          var d = State.liveData['parent-messages'];
+          var d = State.liveData[page];
           if (d && d.messages) d.messages.unshift(msg);
-          if (State.page === 'parent-messages') render();
+          if (State.page === page) render();
         });
       }).catch(function(){ setLoading(page, false); });
-    },
-    'tutor-homework': function() {
-      setLoading(page, true);
-      DB.loadTutorHomework(uid).then(function(data) {
-        State.liveData[page] = data;
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'tutor-calendar': function() {
-      setLoading(page, true);
-      DB.loadTutorCalendar(uid).then(function(data) {
-        State.liveData[page] = data;
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'tutor-messages': function() {
-      setLoading(page, true);
-      Promise.all([DB.loadMessages(uid), DB.loadTutorRecipients(uid)])
-        .then(function(results) {
-          State.liveData[page] = {
-            messages: results[0],
-            students: results[1].students || [],
-            parents:  results[1].parents  || [],
-          };
-          setLoading(page, false);
-          if (State.page === page) render();
-          Realtime.subscribeMessages(uid, function(msg) {
-            var d = State.liveData['tutor-messages'];
-            if (d && d.messages) d.messages.unshift(msg);
-            if (State.page === 'tutor-messages') render();
-          });
-        }).catch(function(){ setLoading(page, false); });
-    },
-    'student-calendar': function() {
-      setLoading(page, true);
-      DB.loadStudentCalendar(uid).then(function(data) {
-        State.liveData[page] = data;
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'student-homework': function() {
-      setLoading(page, true);
-      DB.loadStudentHomework(uid).then(function(hw) {
-        State.liveData[page] = { homework: hw };
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
+    };
+  }
+
+  var loaders = {
+    'student-dashboard': simpleLoader('student', DB.loadStudentDashboard),
+    'student-sessions':  simpleLoader('student', DB.loadStudentDashboard),
+    'student-progress':  simpleLoader('student', DB.loadStudentDashboard),
+    'student-points':    simpleLoader('student', DB.loadStudentDashboard),
+
+    'tutor-dashboard':   simpleLoader('tutor', DB.loadTutorDashboard),
+    'tutor-students':    simpleLoader('tutor', DB.loadTutorDashboard),
+    'tutor-hours':       simpleLoader('tutor', DB.loadTutorDashboard),
+    'tutor-notes':       simpleLoader('tutor', DB.loadTutorDashboard),
+
+    'parent-dashboard':  simpleLoader('parent', DB.loadParentDashboard),
+    'parent-progress':   simpleLoader('parent', DB.loadParentDashboard),
+    'parent-sessions':   simpleLoader('parent', DB.loadParentDashboard),
+
+    'admin-dashboard':   simpleLoader('admin', DB.loadAdminDashboard),
+    'admin-students':    simpleLoader('admin', DB.loadAdminDashboard),
+    'admin-approvals':   simpleLoader('admin', DB.loadAdminDashboard),
+    'admin-hours':       simpleLoader('admin', DB.loadAdminDashboard),
+    'admin-tutors':      simpleLoader('admin', DB.loadAdminDashboard),
+
+    'student-calendar':  simpleLoader('student-calendar', DB.loadStudentCalendar),
+    'student-homework':  simpleLoader('student-homework', DB.loadStudentHomework, function(hw) { return { homework: hw }; }),
+    'tutor-calendar':    simpleLoader('tutor-calendar', DB.loadTutorCalendar),
+    'tutor-homework':    simpleLoader('tutor-homework', DB.loadTutorHomework),
+    'tutor-requests':    simpleLoader('tutor-requests', DB.loadTutorMatchRequests, function(requests) { return { requests: requests }; }),
+
+    'student-messages': messagesLoader('student-messages',
+      function() { return Promise.all([DB.loadMessages(uid), DB.getStudentTutorId(uid)]); },
+      function(r) { return { messages: r[0], tutorId: r[1] }; }),
+
+    'parent-messages': messagesLoader('parent-messages',
+      function() { return Promise.all([DB.loadMessages(uid), DB.loadParentDashboard(uid)]); },
+      function(r) {
+        var child = (r[1].students || [])[0] || {};
+        return { messages: r[0], tutorId: child.tutor_id || null };
+      }),
+
+    'tutor-messages': messagesLoader('tutor-messages',
+      function() { return Promise.all([DB.loadMessages(uid), DB.loadTutorRecipients(uid)]); },
+      function(r) { return { messages: r[0], students: r[1].students || [], parents: r[1].parents || [] }; }),
+
     'student-matches': function() {
       setLoading(page, true);
       Promise.all([
@@ -358,22 +201,6 @@ function loadPageData(page) {
         setLoading(page, false);
         if (State.page === page || State.matchOverlayOpen) render();
         runMatchEngine(uid); // background analytics upsert
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'tutor-notes': function() {
-      setLoading(page, true);
-      DB.loadTutorDashboard(uid).then(function(data) {
-        State.liveData[page] = data;
-        setLoading(page, false);
-        if (State.page === page) render();
-      }).catch(function(){ setLoading(page, false); });
-    },
-    'tutor-requests': function() {
-      setLoading(page, true);
-      DB.loadTutorMatchRequests(uid).then(function(requests) {
-        State.liveData[page] = { requests: requests };
-        setLoading(page, false);
-        if (State.page === page) render();
       }).catch(function(){ setLoading(page, false); });
     },
   };
@@ -400,6 +227,7 @@ var PAGE_DATA_SOURCE = {
   'tutor-dashboard':   'tutor',
   'tutor-students':    'tutor',
   'tutor-hours':       'tutor',
+  'tutor-notes':       'tutor',
   'parent-dashboard':  'parent',
   'parent-progress':   'parent',
   'parent-sessions':   'parent',
@@ -408,6 +236,14 @@ var PAGE_DATA_SOURCE = {
   'admin-approvals':   'admin',
   'admin-hours':       'admin',
   'admin-tutors':      'admin',
+  'student-calendar':  'student-calendar',
+  'student-homework':  'student-homework',
+  'tutor-calendar':    'tutor-calendar',
+  'tutor-homework':    'tutor-homework',
+  'tutor-requests':    'tutor-requests',
+  'student-messages':  'student-messages',
+  'tutor-messages':    'tutor-messages',
+  'parent-messages':   'parent-messages',
 };
 
 function isCacheValid(source) {
@@ -466,9 +302,20 @@ function loadNotifications() {
   }).catch(function(){});
 }
 
+var _notifDropdownCloseHandler = null;
+
+function closeNotificationsDropdown() {
+  var existing = document.getElementById('notif-dropdown');
+  if (existing) existing.remove();
+  if (_notifDropdownCloseHandler) {
+    document.removeEventListener('click', _notifDropdownCloseHandler);
+    _notifDropdownCloseHandler = null;
+  }
+}
+
 function toggleNotificationsDropdown() {
   var existing = document.getElementById('notif-dropdown');
-  if (existing) { existing.remove(); return; }
+  if (existing) { closeNotificationsDropdown(); return; }
 
   var notifs = State.notifications || [];
   var hasUnread = notifs.some(function(n){ return !n.is_read; });
@@ -503,20 +350,17 @@ function toggleNotificationsDropdown() {
   document.body.insertAdjacentHTML('beforeend', html);
 
   setTimeout(function() {
-    document.addEventListener('click', function _close(e) {
+    _notifDropdownCloseHandler = function(e) {
       var dd = document.getElementById('notif-dropdown');
-      if (dd && !dd.contains(e.target)) {
-        dd.remove();
-        document.removeEventListener('click', _close);
-      }
-    });
+      if (dd && !dd.contains(e.target)) closeNotificationsDropdown();
+    };
+    document.addEventListener('click', _notifDropdownCloseHandler);
   }, 0);
 }
 
 function markAllNotificationsRead() {
   var uid = State.user && State.user.id;
-  var dd  = document.getElementById('notif-dropdown');
-  if (dd) dd.remove();
+  closeNotificationsDropdown();
   DB.markAllNotificationsRead(uid).then(function() {
     State.notifications = (State.notifications || []).map(function(n) {
       return Object.assign({}, n, { is_read: true });
@@ -820,6 +664,7 @@ function doSubmitHomework(hwId) {
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-send"></i> Submit'; }
       if (r && r.error) { toast('Could not submit. Try again.', 'error'); return; }
       toast('Homework submitted!', 'success');
+      bustCache('student-homework');
       loadPageData('student-homework');
     })
     .catch(function() {
@@ -1765,6 +1610,7 @@ function respondToMatchRequest(requestId, status, studentId, tutorId) {
     if (r && r.error) { toast('Could not update request. Try again.','error'); return; }
     toast(status === 'accepted' ? 'Student matched! They\'ve been assigned to you.' : 'Request declined.', status === 'accepted' ? 'success' : 'info');
     bustCache('tutor');
+    bustCache('tutor-requests');
     loadPageData('tutor-requests');
     if (status === 'accepted') loadPageData('tutor-students');
   }).catch(function(){ toast('Could not update request. Try again.','error'); });
@@ -1961,6 +1807,7 @@ function bookSession() {
       toast('Session booked.', 'success');
       toggleBookingForm();
       bustCache('tutor');
+      bustCache('tutor-calendar');
       loadPageData('tutor-calendar');
     })
     .catch(function() {
@@ -2118,6 +1965,7 @@ function saveTutorNote() {
     toast('Session note saved.','success');
     State.checklistChecked = new Set();
     State.hwAssigned = null;
+    bustCache('tutor');
     loadPageData('tutor-notes');
     render();
   }).catch(function() {
@@ -2253,6 +2101,7 @@ function submitHomework() {
       if (photoEl)    photoEl.value   = '';
       var prev = document.getElementById('hw-photo-preview');
       if (prev) prev.innerHTML = '';
+      bustCache('tutor-homework');
       loadPageData('tutor-homework');
     })
     .catch(function() {
@@ -2699,6 +2548,8 @@ function render() {
   // Mobile menu
   var menuBtn = document.getElementById('menu-btn');
   if (menuBtn && window.innerWidth <= 900) menuBtn.style.display = 'flex';
+
+  if (State.page === 'landing') startWordAnimation();
 }
 
 /* ---- WORD ANIMATION ---- */
@@ -2710,11 +2561,18 @@ var wordPairs = [
 ];
 var wordIdx = 0;
 
+var _wordAnimationInterval = null;
+
 function startWordAnimation() {
-  setInterval(function() {
+  if (_wordAnimationInterval) return;
+  _wordAnimationInterval = setInterval(function() {
     var w1 = document.getElementById('hero-word');
     var w2 = document.getElementById('hero-word-2');
-    if (!w1 || !w2) return;
+    if (!w1 || !w2) {
+      clearInterval(_wordAnimationInterval);
+      _wordAnimationInterval = null;
+      return;
+    }
     wordIdx = (wordIdx + 1) % wordPairs.length;
     w1.style.transition = w2.style.transition = 'opacity .25s ease, transform .25s ease';
     w1.style.opacity = w2.style.opacity = '0';
@@ -2740,7 +2598,6 @@ function startWordAnimation() {
 /* ---- INIT ---- */
 document.addEventListener('DOMContentLoaded', function() {
   render();
-  startWordAnimation();
   document.addEventListener('click', function(e) {
     var sidebar = document.getElementById('sidebar');
     var menuBtn = document.getElementById('menu-btn');

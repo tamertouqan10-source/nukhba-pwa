@@ -1,4 +1,4 @@
-const CACHE = 'nukhba-v6';
+const CACHE = 'nukhba-v7';
 const ASSETS = ['/', '/index.html', '/styles/main.css', '/app.js', '/supabase.js', '/manifest.json'];
 
 self.addEventListener('install', e => {
