@@ -625,10 +625,13 @@ var DB = (function() {
       q(function(){ return _supabaseClient.from('students').select('id, users!students_id_fkey(full_name)').eq('tutor_id', userId); }),
       q(function(){ return _supabaseClient.from('homework').select('*, students(id, users!students_id_fkey(full_name))').eq('tutor_id', userId).order('created_at', { ascending: false }).limit(20); }),
     ]).then(function(results) {
-      return {
-        students: results[0].data || [],
-        homework: results[1].data || [],
-      };
+      var homework = results[1].data || [];
+      return resolveHwPhotos(homework).then(function() {
+        return {
+          students: results[0].data || [],
+          homework: homework,
+        };
+      });
     });
   }
 
@@ -650,24 +653,54 @@ var DB = (function() {
         });
       }).then(function(r) {
         if (r.error) { console.warn('[DB] Photo upload error:', r.error); return null; }
-        var pub = _supabaseClient.storage.from('homework-photos').getPublicUrl(safeName);
-        return (pub.data && pub.data.publicUrl) || null;
+        // Store the storage path, not a public URL — the bucket is private,
+        // so display reads must go through resolveHwPhotoUrl (signed URL).
+        return safeName;
       });
     }
 
-    return photoUpload.then(function(photoUrl) {
+    return photoUpload.then(function(photoPath) {
       return q(function(){
         return _supabaseClient.from('homework').insert([{
           tutor_id:    tutorId,
           student_id:  studentId,
           title:       cleanTitle,
           description: cleanDesc,
-          photo_url:   photoUrl,
+          photo_url:   photoPath,
           due_date:    dueDate,
           status:      'pending',
         }]);
       });
     });
+  }
+
+  // homework.photo_url / homework.student_photo_url store the storage object
+  // path (not a public URL — the homework-photos bucket is private). Resolve
+  // to a short-lived signed URL for display. Falls back to returning the
+  // value as-is if it's already a full URL (rows saved before this change).
+  function resolveHwPhotoUrl(pathOrUrl) {
+    if (!pathOrUrl) return Promise.resolve(null);
+    if (/^https?:\/\//i.test(pathOrUrl)) return Promise.resolve(pathOrUrl);
+    return q(function(){
+      return _supabaseClient.storage.from('homework-photos').createSignedUrl(pathOrUrl, 3600);
+    }).then(function(r) {
+      if (r.error) { console.warn('[DB] Signed URL error:', r.error); return null; }
+      return (r.data && r.data.signedUrl) || null;
+    });
+  }
+
+  // Resolves photo_url/student_photo_url on a list of homework rows in place.
+  function resolveHwPhotos(rows) {
+    return Promise.all(rows.map(function(hw) {
+      return Promise.all([
+        resolveHwPhotoUrl(hw.photo_url),
+        resolveHwPhotoUrl(hw.student_photo_url),
+      ]).then(function(urls) {
+        hw.photo_url         = urls[0];
+        hw.student_photo_url = urls[1];
+        return hw;
+      });
+    }));
   }
 
   function loadStudentMatches(userId) {
@@ -794,9 +827,14 @@ var DB = (function() {
         .eq('student_id', userId)
         .order('due_date')
         .limit(50);
-    }).then(function(r) { return r.data || []; });
+    }).then(function(r) {
+      var homework = r.data || [];
+      return resolveHwPhotos(homework).then(function() { return homework; });
+    });
   }
 
+  // Used for both the initial submission and later edits — always an UPDATE
+  // on the one existing homework row (never a second/duplicate row).
   function submitStudentHomework(hwId, studentId, studentNote, photoFile) {
     if (!hwId || !studentId) return Promise.resolve({ error: 'Missing required fields' });
     var clean = studentNote ? Sanitize.text(studentNote, 'long') : null;
@@ -812,18 +850,42 @@ var DB = (function() {
         });
       }).then(function(r) {
         if (r.error) { console.warn('[DB] Submission photo upload error:', r.error); return null; }
-        var pub = _supabaseClient.storage.from('homework-photos').getPublicUrl(safeName);
-        return (pub.data && pub.data.publicUrl) || null;
+        // Store the storage path, not a public URL — see resolveHwPhotoUrl.
+        return safeName;
       });
     }
 
-    return photoUpload.then(function(photoUrl) {
-      var update = { status: 'submitted' };
-      if (clean)    update.student_note      = clean;
-      if (photoUrl) update.student_photo_url = photoUrl;
+    return photoUpload.then(function(photoPath) {
+      var update = { status: 'submitted', submitted_at: new Date().toISOString(), student_note: clean };
+      if (photoPath) update.student_photo_url = photoPath; // keep existing photo if none re-attached on edit
       return q(function(){
-        return _supabaseClient.from('homework').update(update).eq('id', hwId).eq('student_id', studentId);
+        return _supabaseClient.from('homework').update(update).eq('id', hwId).eq('student_id', studentId).select();
+      }).then(function(r) {
+        // RLS silently no-ops a blocked UPDATE (0 rows, no error) — e.g. the
+        // deadline has passed — so surface that as an explicit error instead
+        // of the caller reporting a false "submitted" success.
+        if (!r.error && (!r.data || !r.data.length)) {
+          return { error: 'This homework can no longer be edited — the deadline may have passed.' };
+        }
+        return r;
       });
+    });
+  }
+
+  function withdrawStudentHomework(hwId, studentId) {
+    if (!hwId || !studentId) return Promise.resolve({ error: 'Missing required fields' });
+    return q(function(){
+      return _supabaseClient.from('homework').update({
+        status: 'pending',
+        student_note: null,
+        student_photo_url: null,
+        submitted_at: null,
+      }).eq('id', hwId).eq('student_id', studentId).select();
+    }).then(function(r) {
+      if (!r.error && (!r.data || !r.data.length)) {
+        return { error: 'This submission can no longer be withdrawn — the deadline may have passed.' };
+      }
+      return r;
     });
   }
 
@@ -910,6 +972,7 @@ var DB = (function() {
     unmatchPair:                unmatchPair,
     loadStudentHomework:        loadStudentHomework,
     submitStudentHomework:      submitStudentHomework,
+    withdrawStudentHomework:    withdrawStudentHomework,
     toggleAcceptingStudents:    toggleAcceptingStudents,
     loadStudentCalendar:        loadStudentCalendar,
     getStudentTutorId:          getStudentTutorId,
@@ -928,8 +991,21 @@ var Realtime = (function() {
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: table,
         filter: filterCol + '=eq.' + userId,
-      }, function(payload) { if (cb) cb(payload.new); })
-      .subscribe();
+      }, function(payload) {
+        console.log('[Realtime] INSERT received on ' + k, payload.new); // TEMP — remove once confirmed live in prod
+        if (cb) cb(payload.new);
+      })
+      .subscribe(function(status, err) {
+        console.log('[Realtime] ' + k + ' status:', status, err || '');
+        // Let a future subscribe() call retry instead of staying silently broken forever.
+        // Must actually remove the channel (not just forget it here), otherwise the
+        // errored channel keeps its own internal reconnect/callback wiring alive and
+        // a later resubscribe stacks a second live channel on the same topic.
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          _supabaseClient.removeChannel(channels[k]);
+          delete channels[k];
+        }
+      });
   }
   function subscribeMessages(userId, onMessage) {
     subscribe('messages', 'messages', 'receiver_id', userId, onMessage);

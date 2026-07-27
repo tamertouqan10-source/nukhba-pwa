@@ -701,17 +701,43 @@ function doSubmitHomework(hwId) {
   var note    = noteEl  ? noteEl.value.trim() : '';
   var photo   = photoEl && photoEl.files && photoEl.files[0] ? photoEl.files[0] : null;
   var btn     = document.getElementById('hw-submit-btn-inner-' + hwId);
+  var restoreHtml = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span> Submitting...'; }
   DB.submitStudentHomework(hwId, uid, note || null, photo)
     .then(function(r) {
-      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-send"></i> Submit'; }
-      if (r && r.error) { toast('Could not submit. Try again.', 'error'); return; }
+      if (btn) { btn.disabled = false; btn.innerHTML = restoreHtml; }
+      if (r && r.error) { toast(typeof r.error === 'string' ? r.error : 'Could not submit. Try again.', 'error'); return; }
       toast('Homework submitted!', 'success');
       bustCache('student-homework');
       loadPageData('student-homework');
     })
     .catch(function() {
-      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-send"></i> Submit'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = restoreHtml; }
+      toast('Something went wrong. Please try again.', 'error');
+    });
+}
+
+function confirmWithdrawHomework(hwId) {
+  openConfirmModal({
+    title:        'Withdraw submission?',
+    body:         'This removes your submitted note and photo. You can resubmit anytime before the deadline.',
+    confirmLabel: 'Withdraw',
+    danger:       true,
+    onConfirm:    function(){ withdrawHomework(hwId); },
+  });
+}
+
+function withdrawHomework(hwId) {
+  var uid = State.user && State.user.id;
+  if (!uid) return;
+  DB.withdrawStudentHomework(hwId, uid)
+    .then(function(r) {
+      if (r && r.error) { toast(typeof r.error === 'string' ? r.error : 'Could not withdraw. Try again.', 'error'); return; }
+      toast('Submission withdrawn.', 'info');
+      bustCache('student-homework');
+      loadPageData('student-homework');
+    })
+    .catch(function() {
       toast('Something went wrong. Please try again.', 'error');
     });
 }
@@ -1489,12 +1515,33 @@ function renderStudentCalendar() {
   return renderShell(studentNav(), content, 'Calendar');
 }
 
+function homeworkDeadlinePassed(hw) {
+  if (!hw.due_date) return false;
+  return new Date(hw.due_date + 'T23:59:59') < new Date();
+}
+
+// Shared submit/edit form body — used for a first-time submission (Pending
+// section) and for editing an existing one (Submitted section, pre-deadline).
+function homeworkSubmitFormHtml(hw, isEdit) {
+  return '<div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:8px">'+(isEdit?'Update your submission':'Submit your work')+'</div>' +
+    '<textarea class="input" id="hw-note-'+hw.id+'" rows="3" placeholder="Add a note for your tutor (optional)..." style="margin-bottom:8px;resize:vertical">'+esc(hw.student_note||'')+'</textarea>' +
+    (isEdit && hw.student_photo_url ? '<div style="font-size:11px;color:var(--text-3);margin-bottom:8px">Current photo attached — choose a new one below to replace it.</div>' : '') +
+    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+    '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-2);padding:7px 14px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--bg-2)">' +
+    '<i class="ti ti-camera" style="color:var(--accent)"></i> Attach photo' +
+    '<input type="file" accept="image/*" capture="environment" id="hw-photo-'+hw.id+'" style="display:none" />' +
+    '</label>' +
+    '<button id="hw-submit-btn-inner-'+hw.id+'" class="btn btn-primary btn-sm" onclick="doSubmitHomework(\''+hw.id+'\')"><i class="ti ti-send"></i> '+(isEdit?'Save changes':'Submit')+'</button>' +
+    '<button class="btn btn-ghost btn-sm" onclick="toggleSubmitForm(\''+hw.id+'\')">Cancel</button>' +
+    '</div>';
+}
+
 function renderStudentHomework() {
   if (isLoading('student-homework')) return renderShell(studentNav(), Spinner(), 'Homework');
   var d       = State.liveData['student-homework'] || {};
   var homework = d.homework || [];
   var pending  = homework.filter(function(hw){ return hw.status === 'pending' || hw.status === 'assigned'; });
-  var done     = homework.filter(function(hw){ return hw.status === 'submitted' || hw.status === 'completed'; });
+  var done     = homework.filter(function(hw){ return hw.status === 'submitted' || hw.status === 'completed' || hw.status === 'reviewed'; });
 
   var content = '<div class="page-header"><div><div class="page-title">Homework</div><div class="page-sub">Assignments from your tutor</div></div></div>';
 
@@ -1507,9 +1554,7 @@ function renderStudentHomework() {
     content += '<div class="card mb-24"><div class="card-title">Pending</div>';
     content += pending.map(function(hw) {
       var tutorName = (hw.tutors && hw.tutors.users && hw.tutors.users.full_name) || 'Your tutor';
-      var now       = new Date();
-      var dueDate   = hw.due_date ? new Date(hw.due_date + 'T23:59:59') : null;
-      var overdue   = dueDate && dueDate < now;
+      var overdue   = homeworkDeadlinePassed(hw);
       return '<div style="padding:16px 0;border-bottom:1px solid var(--border-2)">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px">' +
         '<div style="flex:1"><div style="font-size:14px;font-weight:600;color:var(--text-1);margin-bottom:4px">'+esc(hw.title)+'</div>' +
@@ -1523,16 +1568,8 @@ function renderStudentHomework() {
         '<button class="btn btn-secondary btn-sm" onclick="toggleSubmitForm(\''+hw.id+'\')"><i class="ti ti-upload"></i> Submit homework</button>' +
         '</div>' +
         '<div id="hw-submit-'+hw.id+'" class="hw-submit-form" style="display:none;margin-top:10px">' +
-        '<div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:8px">Submit your work</div>' +
-        '<textarea class="input" id="hw-note-'+hw.id+'" rows="3" placeholder="Add a note for your tutor (optional)..." style="margin-bottom:8px;resize:vertical"></textarea>' +
-        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
-        '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-2);padding:7px 14px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--bg-2)">' +
-        '<i class="ti ti-camera" style="color:var(--accent)"></i> Attach photo' +
-        '<input type="file" accept="image/*" capture="environment" id="hw-photo-'+hw.id+'" style="display:none" />' +
-        '</label>' +
-        '<button id="hw-submit-btn-inner-'+hw.id+'" class="btn btn-primary btn-sm" onclick="doSubmitHomework(\''+hw.id+'\')"><i class="ti ti-send"></i> Submit</button>' +
-        '<button class="btn btn-ghost btn-sm" onclick="toggleSubmitForm(\''+hw.id+'\')">Cancel</button>' +
-        '</div></div>' +
+        homeworkSubmitFormHtml(hw, false) +
+        '</div>' +
         '</div>';
     }).join('');
     content += '</div>';
@@ -1541,10 +1578,26 @@ function renderStudentHomework() {
   if (done.length) {
     content += '<div class="card"><div class="card-title">Submitted</div>';
     content += done.map(function(hw) {
-      return '<div style="padding:12px 0;border-bottom:1px solid var(--border-2);display:flex;justify-content:space-between;align-items:center">' +
-        '<div><div style="font-size:13px;font-weight:600;color:var(--text-1)">'+esc(hw.title)+'</div>' +
-        '<div style="font-size:11px;color:var(--text-3);margin-top:2px">Due: '+esc(hw.due_date||'—')+'</div></div>' +
-        StatusBadge(hw.status) + '</div>';
+      var locked = homeworkDeadlinePassed(hw) || hw.status === 'reviewed';
+      return '<div style="padding:16px 0;border-bottom:1px solid var(--border-2)">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px">' +
+        '<div><div style="font-size:14px;font-weight:600;color:var(--text-1)">'+esc(hw.title)+'</div>' +
+        '<div style="font-size:12px;color:var(--text-3);margin-top:2px"><i class="ti ti-calendar" style="font-size:11px"></i> Due: '+esc(hw.due_date||'—')+(locked?' &middot; locked':'')+'</div></div>' +
+        StatusBadge(hw.status) +
+        '</div>' +
+        (hw.student_note ? '<div style="font-size:13px;color:var(--text-2);margin-bottom:8px">'+esc(hw.student_note)+'</div>' : '') +
+        (hw.student_photo_url ? '<div style="margin-bottom:8px"><img src="'+esc(hw.student_photo_url)+'" alt="Your submission" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--border)" /></div>' : '') +
+        (locked
+          ? '<div style="font-size:12px;color:var(--text-3)"><i class="ti ti-lock"></i> Locked — the deadline has passed</div>'
+          : '<div id="hw-submit-btn-'+hw.id+'" style="display:flex;gap:8px">' +
+              '<button class="btn btn-secondary btn-sm" onclick="toggleSubmitForm(\''+hw.id+'\')"><i class="ti ti-edit"></i> Edit</button>' +
+              '<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="confirmWithdrawHomework(\''+hw.id+'\')"><i class="ti ti-x"></i> Withdraw</button>' +
+            '</div>'
+        ) +
+        '<div id="hw-submit-'+hw.id+'" class="hw-submit-form" style="display:none;margin-top:10px">' +
+        homeworkSubmitFormHtml(hw, true) +
+        '</div>' +
+        '</div>';
     }).join('');
     content += '</div>';
   }
@@ -1899,6 +1952,7 @@ function renderTutorCalendar() {
 
   // Booking form — hidden until the button is clicked
   content += '<div id="booking-form-wrap" style="display:none"><div class="card mb-24"><div class="card-title">Book a session</div>';
+  content += '<div id="booking-form-error" style="display:none;background:var(--danger-soft);color:var(--danger);border-radius:var(--r-md);padding:10px 14px;font-size:13px;margin-bottom:14px;"></div>';
   content += '<div class="grid-2">';
   content += '<div class="input-group"><label class="input-label">Student</label><select class="select" id="book-student"><option value="">Select a student...</option>';
   content += students.map(function(s){
@@ -1921,6 +1975,19 @@ function renderTutorCalendar() {
 function toggleBookingForm() {
   var wrap = document.getElementById('booking-form-wrap');
   if (wrap) wrap.style.display = wrap.style.display === 'none' ? '' : 'none';
+  bookingHideError();
+}
+
+function bookingShowError(msg) {
+  var err = document.getElementById('booking-form-error');
+  if (!err) { toast(msg, 'error'); return; }
+  err.textContent = msg;
+  err.style.display = 'block';
+}
+
+function bookingHideError() {
+  var err = document.getElementById('booking-form-error');
+  if (err) err.style.display = 'none';
 }
 
 function bookSession() {
@@ -1930,8 +1997,9 @@ function bookSession() {
   var duration  = (document.getElementById('book-duration')||{}).value||'60';
   var link      = (document.getElementById('book-link')||{}).value||'';
 
-  if (!studentId) { toast('Please select a student.', 'error'); return; }
-  if (!datetime)  { toast('Please select a date and time.', 'error'); return; }
+  bookingHideError();
+  if (!studentId) { bookingShowError('Please select a student.'); return; }
+  if (!datetime)  { bookingShowError('Please select a date and time.'); return; }
 
   var scheduledAt = new Date(datetime).toISOString();
   var btn = document.querySelector('[onclick="bookSession()"]');
@@ -1940,7 +2008,11 @@ function bookSession() {
   DB.createSession(uid, studentId, scheduledAt, parseInt(duration, 10), link || null)
     .then(function(r) {
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-calendar-plus"></i> Confirm booking'; }
-      if (r && r.error) { toast('Could not book session. Try again.', 'error'); return; }
+      if (r && r.error) {
+        var msg = (r.error && r.error.message) ? r.error.message : (typeof r.error === 'string' ? r.error : 'Could not book session.');
+        bookingShowError(msg);
+        return;
+      }
       toast('Session booked.', 'success');
       toggleBookingForm();
       bustCache('tutor');
@@ -1949,7 +2021,7 @@ function bookSession() {
     })
     .catch(function() {
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-calendar-plus"></i> Confirm booking'; }
-      toast('Something went wrong. Please try again.', 'error');
+      bookingShowError('Something went wrong. Please try again.');
     });
 }
 
@@ -2168,12 +2240,17 @@ function renderTutorHomework() {
   content += '<div class="card"><div class="card-title">Recently assigned</div>';
   if (hwList.length) {
     content += hwList.map(function(hw){
-      var sName = (hw.students && hw.students.users && hw.students.users.full_name) || 'Unknown';
+      var sName    = (hw.students && hw.students.users && hw.students.users.full_name) || 'Unknown';
+      var submitted = hw.status === 'submitted' || hw.status === 'reviewed';
       return '<div style="padding:12px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start">'+
         '<div><div style="font-size:14px;font-weight:600;color:var(--text-1)">'+esc(hw.title)+'</div>'+
         '<div style="font-size:12px;color:var(--text-3);margin-top:3px">'+esc(sName)+' &middot; Due '+esc(hw.due_date || '')+'</div>'+
         (hw.description ? '<div style="font-size:12px;color:var(--text-2);margin-top:4px">'+esc(hw.description)+'</div>' : '')+
         (hw.photo_url   ? '<div style="margin-top:6px"><img src="'+esc(hw.photo_url)+'" alt="Homework photo" style="max-width:100%;max-height:120px;border-radius:var(--r-md);border:1px solid var(--border)" /></div>' : '')+
+        (submitted ? '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border-2)"><div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Student submission</div>'+
+          (hw.student_note ? '<div style="font-size:12px;color:var(--text-2);margin-bottom:4px">'+esc(hw.student_note)+'</div>' : '')+
+          (hw.student_photo_url ? '<img src="'+esc(hw.student_photo_url)+'" alt="Student submission photo" style="max-width:100%;max-height:120px;border-radius:var(--r-md);border:1px solid var(--border)" />' : '')+
+          '</div>' : '')+
         '</div>'+StatusBadge(hw.status || 'pending')+'</div>';
     }).join('');
   } else {
