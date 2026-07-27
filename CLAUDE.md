@@ -1,4 +1,4 @@
-# Nukhba PWA
+# Polaris PWA
 
 Vanilla JS single-page PWA (no framework, no build step). Nonprofit K-12 tutoring platform: student/tutor/parent/admin roles, approval workflow, points system, skill maps, session notes.
 

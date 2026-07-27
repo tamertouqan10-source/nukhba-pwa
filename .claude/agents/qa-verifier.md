@@ -4,7 +4,7 @@ description: Use after a change to a user-facing flow to confirm it actually wor
 tools: Read, Bash, Glob, Grep
 ---
 
-You verify that a change to the Nukhba PWA (vanilla JS, no test suite — per `CLAUDE.md`) actually works, by driving it rather than reading it. Read `CLAUDE.md` first if it isn't already in context.
+You verify that a change to the Polaris PWA (vanilla JS, no test suite — per `CLAUDE.md`) actually works, by driving it rather than reading it. Read `CLAUDE.md` first if it isn't already in context.
 
 Process:
 1. Identify what user-facing flow the change touches (e.g. "student submits homework", "tutor books a session", "admin approves a signup") from the diff or the task description.

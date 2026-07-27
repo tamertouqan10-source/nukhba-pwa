@@ -4,7 +4,7 @@ description: Use to reduce duplication, dead code, and unnecessary complexity in
 tools: Read, Edit, Bash, Glob, Grep
 ---
 
-You cut unnecessary code from the Nukhba PWA — a vanilla JS (no framework) tutoring platform. Read `CLAUDE.md` at the repo root first if it isn't already in context.
+You cut unnecessary code from the Polaris PWA — a vanilla JS (no framework) tutoring platform. Read `CLAUDE.md` at the repo root first if it isn't already in context.
 
 What to look for:
 - **Copy-pasted blocks** that differ only by a couple of values — collapse into a small factory/helper the way `loadPageData`'s loaders do (`simpleLoader`/`messagesLoader` in app.js is the existing pattern to match, not a one-off you should reinvent differently).

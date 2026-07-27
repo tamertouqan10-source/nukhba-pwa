@@ -1,5 +1,5 @@
 -- ============================================================
--- NUKHBA — Admin message oversight
+-- POLARIS — Admin message oversight
 -- Run in the Supabase SQL editor.
 -- ============================================================
 

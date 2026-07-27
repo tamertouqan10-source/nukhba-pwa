@@ -1,5 +1,5 @@
 -- ============================================================
--- NUKHBA — Match features schema update
+-- POLARIS — Match features schema update
 -- Run in the Supabase SQL editor.
 -- ============================================================
 

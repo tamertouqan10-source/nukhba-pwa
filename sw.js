@@ -1,5 +1,5 @@
-const CACHE = 'nukhba-v11';
-const ASSETS = ['/', '/index.html', '/styles/main.css', '/app.js', '/supabase.js', '/manifest.json'];
+const CACHE = 'nukhba-v14';
+const ASSETS = ['/', '/index.html', '/styles/main.css', '/app.js', '/supabase.js', '/manifest.json', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png', '/favicon.ico', '/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));

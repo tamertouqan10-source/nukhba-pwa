@@ -1,5 +1,5 @@
 -- ============================================================
--- NUKHBA — Unique constraint for match_scores upsert
+-- POLARIS — Unique constraint for match_scores upsert
 -- Run AFTER fix-tutor-visibility.sql
 -- ============================================================
 

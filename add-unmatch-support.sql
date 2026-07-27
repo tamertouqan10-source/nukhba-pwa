@@ -1,5 +1,5 @@
 -- ============================================================
--- NUKHBA — Unmatch (student <-> tutor) support
+-- POLARIS — Unmatch (student <-> tutor) support
 -- Run in the Supabase SQL editor.
 -- ============================================================
 

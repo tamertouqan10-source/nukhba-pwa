@@ -1,5 +1,5 @@
 -- ============================================================
--- NUKHBA — Homework submission fixes
+-- POLARIS — Homework submission fixes
 -- Run in the Supabase SQL editor.
 --
 -- Fixes three things:

@@ -1,5 +1,5 @@
 -- ============================================================
--- NUKHBA — Homework table + storage bucket setup
+-- POLARIS — Homework table + storage bucket setup
 -- Run this in the Supabase SQL editor, then configure the
 -- storage bucket as described below.
 -- ============================================================

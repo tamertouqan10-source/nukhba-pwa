@@ -1,5 +1,5 @@
 -- ============================================================
--- NUKHBA — Fix tutors + students schema column mismatches
+-- POLARIS — Fix tutors + students schema column mismatches
 -- Root cause: onboardingSubmit writes new column names that
 -- don't exist yet, causing silent upsert failures.
 -- Run this in the Supabase SQL editor (service role).

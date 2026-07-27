@@ -1,5 +1,5 @@
 -- ============================================================
--- NUKHBA — Matching redesign schema update
+-- POLARIS — Matching redesign schema update
 -- Run AFTER add-match-features.sql and add-tender-matching.sql
 -- ============================================================
 

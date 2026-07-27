@@ -1,5 +1,5 @@
 -- ============================================================
--- NUKHBA — Weekly (not per-session/per-day) attendance streak
+-- POLARIS — Weekly (not per-session/per-day) attendance streak
 -- Run in the Supabase SQL editor.
 -- ============================================================
 --

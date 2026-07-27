@@ -1,5 +1,5 @@
 -- ============================================================
--- NUKHBA — Fix tutor visibility + match RLS
+-- POLARIS — Fix tutor visibility + match RLS
 -- Run AFTER all prior migrations (add-match-features.sql,
 -- add-tender-matching.sql, add-matching-redesign.sql)
 -- ============================================================

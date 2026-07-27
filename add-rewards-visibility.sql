@@ -1,5 +1,5 @@
 -- ============================================================
--- NUKHBA — Rewards + per-reward student allowlist
+-- POLARIS — Rewards + per-reward student allowlist
 -- Run in the Supabase SQL editor.
 -- ============================================================
 --

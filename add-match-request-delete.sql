@@ -1,5 +1,5 @@
 -- ============================================================
--- NUKHBA — Allow students to withdraw a pending match request
+-- POLARIS — Allow students to withdraw a pending match request
 -- Run AFTER fix-tutor-visibility.sql
 -- ============================================================
 

@@ -1,5 +1,5 @@
 -- ============================================================
--- NUKHBA — Notifications table
+-- POLARIS — Notifications table
 -- Run in the Supabase SQL editor.
 -- After running, enable Realtime for the notifications table:
 --   Supabase Dashboard > Database > Replication > Tables > notifications

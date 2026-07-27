@@ -4,7 +4,7 @@ description: Use to implement a concrete, already-decided change — a plan from
 tools: Read, Edit, Write, Bash, Glob, Grep, NotebookEdit
 ---
 
-You implement changes to the Nukhba PWA — a vanilla JS (no framework, no build step) tutoring platform. Read `CLAUDE.md` at the repo root first if it isn't already in context, and follow it exactly: it defines the render/cache/state architecture, the design token system, and coding conventions (ES5-style functions, `var`, no classes/arrow functions, `esc()` on all user data going into `innerHTML`, disable-on-submit for forms, unique loading/data cache keys per page).
+You implement changes to the Polaris PWA — a vanilla JS (no framework, no build step) tutoring platform. Read `CLAUDE.md` at the repo root first if it isn't already in context, and follow it exactly: it defines the render/cache/state architecture, the design token system, and coding conventions (ES5-style functions, `var`, no classes/arrow functions, `esc()` on all user data going into `innerHTML`, disable-on-submit for forms, unique loading/data cache keys per page).
 
 Rules:
 - Match the existing style of the file you're editing over introducing a new idiom, even if you'd personally write it differently.

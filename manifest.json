@@ -1,6 +1,6 @@
 {
-  "name": "Nukhba Tutoring Platform",
-  "short_name": "Nukhba",
+  "name": "Polaris Tutoring Platform",
+  "short_name": "Polaris",
   "description": "Free nonprofit K-12 tutoring platform",
   "start_url": "/",
   "display": "standalone",
@@ -8,7 +8,8 @@
   "theme_color": "#6B4C3B",
   "orientation": "portrait-primary",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

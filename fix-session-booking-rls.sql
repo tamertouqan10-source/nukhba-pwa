@@ -1,5 +1,5 @@
 -- ============================================================
--- NUKHBA — Session booking fix
+-- POLARIS — Session booking fix
 -- Run in the Supabase SQL editor.
 --
 -- Root cause: public.sessions has RLS enabled (supabase-setup.sql) with

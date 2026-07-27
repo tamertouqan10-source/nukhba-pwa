@@ -1,5 +1,5 @@
 -- ============================================================
--- NUKHBA — Tender-style matching + tutor profile expansion
+-- POLARIS — Tender-style matching + tutor profile expansion
 -- Run in the Supabase SQL editor after add-match-features.sql
 -- ============================================================
 

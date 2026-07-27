@@ -1,4 +1,4 @@
-# Nukhba Security Audit Report
+# Polaris Security Audit Report
 **Date:** June 2026  
 **Scope:** Full frontend codebase — index.html, app.js, supabase.js, main.css, sw.js, manifest.json
 
@@ -111,7 +111,7 @@ Added via `vercel.json` (applied at CDN level on every response):
 |------|--------|
 | Privacy Policy page | Already built at `/privacy` route |
 | Terms of Use page | Already built at `/terms` route |
-| Support email link | **Added** — `support@nukhba.org` in footer and login modal |
+| Support email link | **Added** — `polaris.tutoring.support@gmail.com` in footer and login modal |
 | Links in login modal | **Added** — Privacy Policy and Terms of Use accessible from login |
 
 ---
@@ -128,7 +128,7 @@ Added via `vercel.json` (applied at CDN level on every response):
 | Medium | Service worker caches app shell files | Ensure `sw.js` cache version is bumped on every deploy to prevent stale content |
 | Low | `console.log` statements in production | Replace with a proper logger that suppresses in production |
 | Low | No `autocomplete="off"` on admin-only fields | Add to sensitive admin inputs |
-| Low | Support email (`support@nukhba.org`) is a placeholder | Register and configure this email before launch |
+| Low | Support email (`polaris.tutoring.support@gmail.com`) is a placeholder | Register and configure this email before launch |
 
 ---
 

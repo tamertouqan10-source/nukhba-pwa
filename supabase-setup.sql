@@ -1,5 +1,5 @@
 -- =============================================================
--- NUKHBA — Supabase RLS + Trigger Setup
+-- POLARIS — Supabase RLS + Trigger Setup
 -- Run this in the Supabase SQL Editor (Dashboard → SQL Editor)
 -- =============================================================
 

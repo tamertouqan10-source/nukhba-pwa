@@ -282,7 +282,35 @@ var NukhbaAuth = (function() {
     render();
   }
 
-  return { signIn: signIn, signUp: signUp, signOut: signOut, hydrateSession: hydrateSession };
+  // Re-authenticates with the current password before changing it, so a
+  // hijacked/left-open session can't silently lock the real owner out.
+  // Never logs or stores either password anywhere.
+  function changePassword(currentPassword, newPassword, onError, onSuccess) {
+    var rl = RateLimit.check('change-password');
+    if (!rl.allowed) { if (onError) onError('Too many attempts. Wait ' + rl.wait + ' minute(s).'); return; }
+    var cleanCurrent = Sanitize.password(currentPassword);
+    var cleanNew     = Sanitize.password(newPassword);
+    if (!cleanCurrent) { if (onError) onError('Please enter your current password.'); return; }
+    if (!cleanNew)     { if (onError) onError('New password must be 8–128 characters.'); return; }
+    if (!_supabaseClient) { if (onError) onError('Not connected. Please try again.'); return; }
+    _supabaseClient.auth.getUser().then(function(ures) {
+      var email = ures.data && ures.data.user && ures.data.user.email;
+      if (!email) { if (onError) onError('Could not verify your account.'); return; }
+      return _supabaseClient.auth.signInWithPassword({ email: email, password: cleanCurrent })
+        .then(function(r) {
+          if (r.error) { if (onError) onError('Current password is incorrect.'); return; }
+          return _supabaseClient.auth.updateUser({ password: cleanNew }).then(function(ur) {
+            if (ur.error) { if (onError) onError('Could not update password. Try again.'); return; }
+            if (onSuccess) onSuccess();
+          });
+        });
+    })
+      .catch(function() {
+        if (onError) onError('Something went wrong. Please try again.');
+      });
+  }
+
+  return { signIn: signIn, signUp: signUp, signOut: signOut, hydrateSession: hydrateSession, changePassword: changePassword };
 })();
 
 /* ---- COMPATIBILITY SCORING (shared by app.js + supabase.js) ---- */
@@ -361,22 +389,90 @@ var DB = (function() {
   }
 
   function loadParentDashboard(userId) {
-    return q(function(){ return _supabaseClient.from('students').select('*, users!students_id_fkey(full_name), skill_map(*), sessions(*)').eq('parent_id', userId); })
-      .then(function(r) { return { students: r.data || [] }; });
+    return Promise.all([
+      q(function(){ return _supabaseClient.from('students').select('*, users!students_id_fkey(full_name), skill_map(*), sessions(*)').eq('parent_id', userId); }),
+      q(function(){ return _supabaseClient.from('parent_link_requests').select('id, student_id, status, created_at, students!student_id(id, users!students_id_fkey(full_name))').eq('parent_id', userId).order('created_at', { ascending: false }); }),
+    ]).then(function(results) {
+      return {
+        students:     results[0].data || [],
+        linkRequests: results[1].data || [],
+      };
+    });
+  }
+
+  // Autocomplete search for the parent-linking form — resolves to a real
+  // student_id, never free text. See search_unlinked_students() SQL function.
+  function searchUnlinkedStudents(searchTerm) {
+    if (!searchTerm || !searchTerm.trim()) return Promise.resolve([]);
+    return q(function(){
+      return _supabaseClient.rpc('search_unlinked_students', { search_term: searchTerm.trim() });
+    }).then(function(r) {
+      if (r.error) { console.warn('[DB] search_unlinked_students error:', r.error); return []; }
+      return r.data || [];
+    });
+  }
+
+  function submitParentLinkRequest(parentId, studentId) {
+    if (!parentId || !studentId) return Promise.resolve({ error: 'Missing required fields' });
+    // Upsert so retrying the same child after a rejection flips the existing
+    // row back to 'pending' instead of hitting the parent/student UNIQUE
+    // constraint (RLS still only allows this when the student is unlinked).
+    return q(function(){
+      return _supabaseClient.from('parent_link_requests')
+        .upsert([{ parent_id: parentId, student_id: studentId, status: 'pending' }], { onConflict: 'parent_id,student_id' });
+    });
+  }
+
+  function adminApproveLinkRequest(requestId, parentId, studentId) {
+    if (!requestId || !parentId || !studentId) return Promise.resolve({ error: 'Missing required fields' });
+    return q(function(){
+      return _supabaseClient.from('students').select('parent_id').eq('id', studentId).single();
+    }).then(function(sr) {
+      if (sr.error) return sr;
+      if (sr.data && sr.data.parent_id && sr.data.parent_id !== parentId) {
+        return { error: 'This student is already linked to a different parent.' };
+      }
+      return q(function(){
+        return _supabaseClient.from('students').update({ parent_id: parentId }).eq('id', studentId);
+      }).then(function(r1) {
+        if (r1.error) return r1;
+        return q(function(){
+          return _supabaseClient.from('parent_link_requests').update({ status: 'approved' }).eq('id', requestId);
+        });
+      });
+    });
+  }
+
+  function adminRejectLinkRequest(requestId) {
+    if (!requestId) return Promise.resolve({ error: 'Missing request ID' });
+    return q(function(){
+      return _supabaseClient.from('parent_link_requests').update({ status: 'rejected' }).eq('id', requestId);
+    });
+  }
+
+  function adminUnlinkParent(studentId) {
+    if (!studentId) return Promise.resolve({ error: 'Missing student ID' });
+    return q(function(){
+      return _supabaseClient.from('students').update({ parent_id: null }).eq('id', studentId);
+    });
   }
 
   function loadAdminDashboard() {
     return Promise.all([
-      q(function(){ return _supabaseClient.from('users').select('id, full_name, role, is_approved, created_at').order('created_at', { ascending: false }); }),
+      q(function(){ return _supabaseClient.from('users').select('id, full_name, email, role, is_approved, created_at').order('created_at', { ascending: false }); }),
       q(function(){ return _supabaseClient.from('sessions').select('*, students(id, users!students_id_fkey(full_name)), tutors(id, users(full_name))').gte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(20); }),
       q(function(){ return _supabaseClient.from('reward_requests').select('*, students(id, users!students_id_fkey(full_name), points_balance), rewards(name, cost_points)').eq('status', 'pending').order('created_at', { ascending: false }); }),
       q(function(){ return _supabaseClient.from('tutor_hours').select('tutor_id, session_date, hours_logged, tutors(users(full_name))'); }),
+      q(function(){ return _supabaseClient.from('parent_link_requests').select('id, parent_id, student_id, status, created_at, parent_user:users!parent_id(full_name), student:students!student_id(id, users!students_id_fkey(full_name))').eq('status', 'pending').order('created_at', { ascending: false }); }),
+      q(function(){ return _supabaseClient.from('students').select('id, parent_id, parent:users!parent_id(full_name)'); }),
     ]).then(function(results) {
       return {
-        users:          results[0].data || [],
-        sessions:       results[1].data || [],
-        rewardRequests: results[2].data || [],
-        tutorHours:     results[3].data || [],
+        users:            results[0].data || [],
+        sessions:         results[1].data || [],
+        rewardRequests:   results[2].data || [],
+        tutorHours:       results[3].data || [],
+        linkRequests:     results[4].data || [],
+        studentLinks:     results[5].data || [],
       };
     });
   }
@@ -977,6 +1073,11 @@ var DB = (function() {
     loadStudentCalendar:        loadStudentCalendar,
     getStudentTutorId:          getStudentTutorId,
     loadTutorRecipients:        loadTutorRecipients,
+    searchUnlinkedStudents:     searchUnlinkedStudents,
+    submitParentLinkRequest:    submitParentLinkRequest,
+    adminApproveLinkRequest:    adminApproveLinkRequest,
+    adminRejectLinkRequest:     adminRejectLinkRequest,
+    adminUnlinkParent:          adminUnlinkParent,
   };
 })();
 

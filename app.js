@@ -18,6 +18,7 @@ const State = {
   checklistChecked: new Set(),
   calState:         {},   // { [calKey]: { y, m } } for month calendar navigation
   calEvents:        {},   // { [calKey]: [{date, label, type, time, link}] }
+  adminAccountsFilter: 'all',
 };
 
 /* ---- HELPERS ---- */
@@ -209,6 +210,7 @@ function loadPageData(page) {
     'admin-approvals':   simpleLoader('admin', DB.loadAdminDashboard),
     'admin-hours':       simpleLoader('admin', DB.loadAdminDashboard),
     'admin-tutors':      simpleLoader('admin', DB.loadAdminDashboard),
+    'admin-accounts':    simpleLoader('admin', DB.loadAdminDashboard),
     'admin-rewards':     simpleLoader('admin-rewards', DB.loadAdminRewards),
     'admin-messages':    simpleLoader('admin-messages', DB.loadAllMessages, function(msgs) { return { messages: msgs }; }),
 
@@ -278,6 +280,7 @@ var PAGE_DATA_SOURCE = {
   'admin-approvals':   'admin',
   'admin-hours':       'admin',
   'admin-tutors':      'admin',
+  'admin-accounts':    'admin',
   'admin-rewards':     'admin-rewards',
   'admin-messages':    'admin-messages',
   'student-calendar':  'student-calendar',
@@ -752,7 +755,7 @@ function renderLanding() {
 
   // NAV
   parts.push('<nav class="nav">');
-  parts.push('<div class="nav-logo"><div class="nav-logo-mark">N</div><div><div class="nav-logo-text">Nukhba</div><div class="nav-logo-sub">Tutoring Platform</div></div></div>');
+  parts.push('<div class="nav-logo"><div class="nav-logo-mark">N</div><div><div class="nav-logo-text">Polaris</div><div class="nav-logo-sub">Tutoring Platform</div></div></div>');
   parts.push('<div class="nav-actions"><button class="btn btn-ghost" onclick="openModal(\'login\')">Sign in</button></div>');
   parts.push('</nav>');
 
@@ -821,11 +824,11 @@ function renderLanding() {
 
   // FOOTER
   parts.push('<footer class="site-footer">');
-  parts.push('<div class="footer-copy">© 2026 Nukhba Tutoring Platform. All rights reserved.</div>');
+  parts.push('<div class="footer-copy">© 2026 Polaris</div>');
   parts.push('<div class="footer-links">');
   parts.push('<span class="footer-link" onclick="navigate(\'terms\')">Terms of Use</span>');
   parts.push('<span class="footer-link" onclick="navigate(\'privacy\')">Privacy Policy</span>');
-  parts.push('<a class="footer-link" href="mailto:support@nukhba.org">Support</a>');
+  parts.push('<a class="footer-link" href="mailto:polaris.tutoring.support@gmail.com">Support</a>');
   parts.push('<span class="footer-link" onclick="openModal(\'login\')">Sign in</span>');
   parts.push('</div></footer></div>');
   return parts.join('');
@@ -838,7 +841,7 @@ function openHowItWorks() {
   parts.push('<div class="modal-overlay" id="how-modal" onclick="if(event.target===this)closeModalById(\'how-modal\')" style="z-index:200">');
   parts.push('<div class="modal" style="max-width:500px" onclick="event.stopPropagation()">');
   parts.push('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">');
-  parts.push('<div style="font-family:var(--font-display);font-size:22px;font-weight:600;color:var(--text-1)">How Nukhba works</div>');
+  parts.push('<div style="font-family:var(--font-display);font-size:22px;font-weight:600;color:var(--text-1)">How Polaris works</div>');
   parts.push('<button onclick="closeModalById(\'how-modal\')" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px"><i class="ti ti-x"></i></button>');
   parts.push('</div>');
   [['ti-brain','var(--accent)','var(--accent-soft)','01','Smart matching','Every student takes a 5-minute quiz. Our algorithm pairs them with a tutor by learning style, pace, subject, and personality.'],
@@ -864,7 +867,7 @@ function renderLoginModal() {
   parts.push('<div class="modal-overlay" id="login-modal" onclick="if(event.target===this&&!document.getElementById(\'signup-confirmed\'))closeModalById(\'login-modal\')">');
   parts.push('<div class="modal" onclick="event.stopPropagation()">');
   parts.push('<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">');
-  parts.push('<div style="display:flex;align-items:center;gap:10px"><div class="nav-logo-mark">N</div><div style="font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--text-1)">Nukhba</div></div>');
+  parts.push('<div style="display:flex;align-items:center;gap:10px"><div class="nav-logo-mark">N</div><div style="font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--text-1)">Polaris</div></div>');
   parts.push('<button id="close-login-btn" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px"><i class="ti ti-x"></i></button>');
   parts.push('</div>');
   // Tabs
@@ -893,7 +896,7 @@ function renderLoginModal() {
   parts.push('</div>');
   // Footer
   parts.push('<div style="text-align:center;margin-top:18px;padding-top:14px;border-top:1px solid var(--border-2);font-size:12px;color:var(--text-3)">');
-  parts.push('<a href="mailto:support@nukhba.org" style="color:var(--accent)">Support</a> &nbsp;·&nbsp; ');
+  parts.push('<a href="mailto:polaris.tutoring.support@gmail.com" style="color:var(--accent)">Support</a> &nbsp;·&nbsp; ');
   parts.push('<span style="cursor:pointer;color:var(--accent)" onclick="closeModalById(\'login-modal\');navigate(\'privacy\')">Privacy Policy</span> &nbsp;·&nbsp; ');
   parts.push('<span style="cursor:pointer;color:var(--accent)" onclick="closeModalById(\'login-modal\');navigate(\'terms\')">Terms of Use</span>');
   parts.push('</div></div></div>');
@@ -969,7 +972,7 @@ function renderShell(navItems, pageContent, title) {
     : '';
   return '<div class="app-shell">' +
     '<aside class="sidebar" id="sidebar">' +
-    '<div class="sidebar-logo"><div class="nav-logo-mark">N</div><div><div class="nav-logo-text">Nukhba</div><div style="font-size:10px;color:var(--text-3);text-transform:capitalize">' + esc(u.role) + ' portal</div></div></div>' +
+    '<div class="sidebar-logo"><div class="nav-logo-mark">N</div><div><div class="nav-logo-text">Polaris</div><div style="font-size:10px;color:var(--text-3);text-transform:capitalize">' + esc(u.role) + ' portal</div></div></div>' +
     '<nav class="sidebar-nav">' + navItems + '</nav>' +
     '<div class="sidebar-user">' +
     Avatar(u.name, colorMap[u.role]||'purple', 34) +
@@ -981,12 +984,82 @@ function renderShell(navItems, pageContent, title) {
     '<button class="btn btn-icon btn-ghost" id="menu-btn" onclick="document.getElementById(\'sidebar\').classList.toggle(\'open\')" style="display:none"><i class="ti ti-menu-2"></i></button>' +
     '<div class="topbar-title">' + esc(title) + '</div></div>' +
     '<div class="topbar-right">' +
+    '<button class="btn btn-icon btn-secondary" onclick="navigate(\'account-settings\')" title="Account settings"><i class="ti ti-settings"></i></button>' +
     '<div style="position:relative;display:inline-flex">' +
     '<button class="btn btn-icon btn-secondary" onclick="toggleNotificationsDropdown()" title="Notifications" style="position:relative"><i class="ti ti-bell"></i>' + badge + '</button>' +
     '</div>' +
     '</div></div>' +
     '<div class="page">' + pageContent + '</div>' +
     '</div></div>';
+}
+
+/* ---- ACCOUNT SETTINGS (all roles) ---- */
+function currentRoleNav() {
+  var role = State.user && State.user.role;
+  if (role === 'student') return studentNav();
+  if (role === 'tutor')   return tutorNav();
+  if (role === 'parent')  return parentNav();
+  if (role === 'admin')   return adminNav();
+  return '';
+}
+
+function renderAccountSettings() {
+  var content = '<div class="page-header"><div><div class="page-title">Account settings</div></div></div>';
+  content += '<div class="card" style="max-width:440px">';
+  content += '<div class="card-title">Change password</div>';
+  content += '<div id="change-password-error" style="display:none;background:var(--danger-soft);color:var(--danger);border-radius:var(--r-md);padding:9px 13px;font-size:13px;margin-bottom:14px"></div>';
+  content += '<div id="change-password-success" style="display:none;background:var(--teal-soft);color:var(--teal);border-radius:var(--r-md);padding:9px 13px;font-size:13px;margin-bottom:14px"></div>';
+  content += '<div class="input-group"><label class="input-label">Current password</label><input class="input" type="password" id="cp-current" autocomplete="current-password" maxlength="128" /></div>';
+  content += '<div class="input-group"><label class="input-label">New password</label><input class="input" type="password" id="cp-new" autocomplete="new-password" maxlength="128" placeholder="Minimum 8 characters" /></div>';
+  content += '<div class="input-group"><label class="input-label">Confirm new password</label><input class="input" type="password" id="cp-confirm" autocomplete="new-password" maxlength="128" onkeydown="if(event.key===\'Enter\')submitChangePassword()" /></div>';
+  content += '<button class="btn btn-primary" id="cp-submit-btn" style="width:100%;justify-content:center" onclick="submitChangePassword()"><i class="ti ti-lock"></i> Update password</button>';
+  content += '</div>';
+  return renderShell(currentRoleNav(), content, 'Account Settings');
+}
+
+function changePasswordShowError(msg) {
+  var errEl = document.getElementById('change-password-error');
+  var okEl  = document.getElementById('change-password-success');
+  if (okEl) okEl.style.display = 'none';
+  if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+}
+
+function submitChangePassword() {
+  var currentEl = document.getElementById('cp-current');
+  var newEl     = document.getElementById('cp-new');
+  var confirmEl = document.getElementById('cp-confirm');
+  var errEl     = document.getElementById('change-password-error');
+  var okEl      = document.getElementById('change-password-success');
+  if (errEl) errEl.style.display = 'none';
+  if (okEl)  okEl.style.display  = 'none';
+  if (!currentEl || !newEl || !confirmEl) return;
+
+  var current = currentEl.value || '';
+  var next    = newEl.value || '';
+  var confirm = confirmEl.value || '';
+
+  if (!current)         { changePasswordShowError('Please enter your current password.'); return; }
+  if (next.length < 8)  { changePasswordShowError('New password must be at least 8 characters.'); return; }
+  if (next !== confirm) { changePasswordShowError('New passwords do not match.'); return; }
+
+  var btn = document.getElementById('cp-submit-btn');
+  var restoreHtml = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span> Updating...'; }
+
+  NukhbaAuth.changePassword(current, next,
+    function onError(msg) {
+      if (btn) { btn.disabled = false; btn.innerHTML = restoreHtml; }
+      changePasswordShowError(msg);
+    },
+    function onSuccess() {
+      if (btn) { btn.disabled = false; btn.innerHTML = restoreHtml; }
+      currentEl.value = '';
+      newEl.value     = '';
+      confirmEl.value = '';
+      if (okEl) { okEl.textContent = 'Password updated.'; okEl.style.display = 'block'; }
+      toast('Password updated.', 'success');
+    }
+  );
 }
 
 /* ============================================
@@ -1117,7 +1190,7 @@ function onboardingSubmit() {
     setLoading('student-matches', true);
   }
   State.page = role + '-dashboard';
-  toast('Profile saved. Welcome to Nukhba.', 'success');
+  toast('Profile saved. Welcome to Polaris.', 'success');
   render();
   loadPageData(State.page);
   if (role === 'student') profileSaved.then(function(){ loadPageData('student-matches'); });
@@ -1529,11 +1602,42 @@ function homeworkSubmitFormHtml(hw, isEdit) {
     '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
     '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-2);padding:7px 14px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--bg-2)">' +
     '<i class="ti ti-camera" style="color:var(--accent)"></i> Attach photo' +
-    '<input type="file" accept="image/*" capture="environment" id="hw-photo-'+hw.id+'" style="display:none" />' +
+    '<input type="file" accept="image/*" capture="environment" id="hw-photo-'+hw.id+'" style="display:none" onchange="previewHomeworkPhoto(\''+hw.id+'\', this)" />' +
     '</label>' +
     '<button id="hw-submit-btn-inner-'+hw.id+'" class="btn btn-primary btn-sm" onclick="doSubmitHomework(\''+hw.id+'\')"><i class="ti ti-send"></i> '+(isEdit?'Save changes':'Submit')+'</button>' +
     '<button class="btn btn-ghost btn-sm" onclick="toggleSubmitForm(\''+hw.id+'\')">Cancel</button>' +
+    '</div>' +
+    '<div id="hw-photo-preview-'+hw.id+'"></div>';
+}
+
+// Client-side-only preview of a chosen file before Submit is pressed — no
+// upload happens here. Tracks the created object URL on the container so it
+// can be revoked (avoids leaking it) when replaced or cleared.
+function previewHomeworkPhoto(hwId, input) {
+  var preview = document.getElementById('hw-photo-preview-' + hwId);
+  if (!preview) return;
+  var prevUrl = preview.getAttribute('data-object-url');
+  if (prevUrl) { URL.revokeObjectURL(prevUrl); preview.removeAttribute('data-object-url'); }
+  if (!input.files || !input.files[0]) { preview.innerHTML = ''; return; }
+  var url = URL.createObjectURL(input.files[0]);
+  preview.setAttribute('data-object-url', url);
+  preview.innerHTML =
+    '<div style="position:relative;display:inline-block;margin-top:8px">' +
+    '<img src="'+url+'" alt="Selected photo preview" style="max-width:100%;max-height:180px;border-radius:var(--r-md);border:1px solid var(--border);display:block" />' +
+    '<button type="button" class="btn btn-icon btn-secondary" style="position:absolute;top:6px;right:6px;width:26px;height:26px" onclick="clearHomeworkPhoto(\''+hwId+'\')"><i class="ti ti-x" style="font-size:12px"></i></button>' +
     '</div>';
+}
+
+function clearHomeworkPhoto(hwId) {
+  var input   = document.getElementById('hw-photo-' + hwId);
+  var preview = document.getElementById('hw-photo-preview-' + hwId);
+  if (input) input.value = '';
+  if (preview) {
+    var prevUrl = preview.getAttribute('data-object-url');
+    if (prevUrl) URL.revokeObjectURL(prevUrl);
+    preview.innerHTML = '';
+    preview.removeAttribute('data-object-url');
+  }
 }
 
 function renderStudentHomework() {
@@ -2329,6 +2433,109 @@ function parentNav() {
   }).join('');
 }
 
+/* ---- PARENT-STUDENT LINK REQUEST ---- */
+function parentLinkRequestFormHtml() {
+  return '<div class="card-title">Link your child\'s account</div>' +
+    '<div style="font-size:13px;color:var(--text-2);margin-bottom:12px;line-height:1.6">Search for your child\'s name below. For safeguarding, only a program administrator can confirm the link — you\'ll see their progress as soon as it\'s approved.</div>' +
+    '<div style="position:relative">' +
+    '<input class="input" id="parent-link-search" placeholder="Type your child\'s full name..." maxlength="80" autocomplete="off" oninput="parentLinkSearchInput(this.value)" />' +
+    '<div id="parent-link-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);margin-top:4px;max-height:220px;overflow-y:auto;z-index:20;box-shadow:0 4px 16px rgba(0,0,0,0.1)"></div>' +
+    '</div>' +
+    '<div id="parent-link-error" style="display:none;background:var(--danger-soft);color:var(--danger);border-radius:var(--r-md);padding:9px 13px;font-size:13px;margin-top:10px"></div>' +
+    '<button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="submitParentLinkRequestUI()"><i class="ti ti-send"></i> Send link request</button>';
+}
+
+var parentLinkSearchTimer = null;
+function parentLinkSearchInput(value) {
+  var input = document.getElementById('parent-link-search');
+  if (input) input.removeAttribute('data-selected-id'); // typing invalidates a previous dropdown pick
+  clearTimeout(parentLinkSearchTimer);
+  var term = (value || '').trim();
+  var dropdown = document.getElementById('parent-link-dropdown');
+  if (!dropdown) return;
+  if (term.length < 2) { dropdown.style.display = 'none'; dropdown.innerHTML = ''; return; }
+  parentLinkSearchTimer = setTimeout(function() {
+    DB.searchUnlinkedStudents(term).then(function(results) {
+      var dd = document.getElementById('parent-link-dropdown');
+      if (!dd) return;
+      if (!results.length) {
+        dd.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--text-3)">No matching student found</div>';
+        dd.style.display = 'block';
+        return;
+      }
+      dd.innerHTML = results.map(function(r){
+        return '<div data-student-id="'+esc(r.student_id)+'" data-name="'+esc(r.full_name)+'" style="padding:10px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border-2)" onmouseover="this.style.background=\'var(--surface-2)\'" onmouseout="this.style.background=\'\'" onclick="selectParentLinkStudent(this)">'+esc(r.full_name)+'</div>';
+      }).join('');
+      dd.style.display = 'block';
+    });
+  }, 300);
+}
+
+function selectParentLinkStudent(el) {
+  var studentId = el.getAttribute('data-student-id');
+  var name      = el.getAttribute('data-name');
+  var input = document.getElementById('parent-link-search');
+  if (input) {
+    input.value = name;
+    input.setAttribute('data-selected-id', studentId);
+  }
+  var dropdown = document.getElementById('parent-link-dropdown');
+  if (dropdown) { dropdown.style.display = 'none'; dropdown.innerHTML = ''; }
+}
+
+function submitParentLinkRequestUI() {
+  var uid   = State.user && State.user.id;
+  var input = document.getElementById('parent-link-search');
+  var errEl = document.getElementById('parent-link-error');
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+  if (!input || !uid) return;
+  var typed      = (input.value || '').trim();
+  var selectedId = input.getAttribute('data-selected-id');
+  if (!typed) {
+    if (errEl) { errEl.textContent = "Please enter your child's name."; errEl.style.display = 'block'; }
+    return;
+  }
+  var btn = document.querySelector('[onclick="submitParentLinkRequestUI()"]');
+  var restoreHtml = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span> Sending...'; }
+
+  function finish(studentId) {
+    DB.submitParentLinkRequest(uid, studentId).then(function(r) {
+      if (btn) { btn.disabled = false; btn.innerHTML = restoreHtml; }
+      if (r && r.error) {
+        var msg = (r.error && r.error.message) ? r.error.message : (typeof r.error === 'string' ? r.error : 'Could not send request.');
+        if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+        return;
+      }
+      toast('Link request sent. An admin will review it.', 'success');
+      bustCache('parent-dashboard');
+      loadPageData('parent-dashboard');
+    }).catch(function() {
+      if (btn) { btn.disabled = false; btn.innerHTML = restoreHtml; }
+      if (errEl) { errEl.textContent = 'Something went wrong. Please try again.'; errEl.style.display = 'block'; }
+    });
+  }
+
+  if (selectedId) {
+    finish(selectedId);
+    return;
+  }
+  // No dropdown pick — resolve the typed name to exactly one real student
+  // via the same search, so we never create a request against free text.
+  DB.searchUnlinkedStudents(typed).then(function(results) {
+    var exact = results.filter(function(r){ return r.full_name.toLowerCase() === typed.toLowerCase(); });
+    if (exact.length === 1) { finish(exact[0].student_id); return; }
+    if (results.length === 1) { finish(results[0].student_id); return; }
+    if (btn) { btn.disabled = false; btn.innerHTML = restoreHtml; }
+    if (errEl) {
+      errEl.textContent = results.length > 1
+        ? 'Multiple students match that name — please pick one from the suggestions.'
+        : 'No student found with that name. Please check the spelling or contact your administrator.';
+      errEl.style.display = 'block';
+    }
+  });
+}
+
 function renderParentDashboard() {
   if (isLoading('parent-dashboard')) return renderShell(parentNav(), Spinner(), 'Dashboard');
   var d        = State.liveData['parent-dashboard'] || {};
@@ -2341,7 +2548,13 @@ function renderParentDashboard() {
   var content = '<div class="page-header"><div><div class="page-title">Hello, '+esc(State.user.name.split(' ')[0])+'</div><div class="page-sub">Viewing progress for '+esc(childName)+'</div></div></div>';
 
   if (!students.length) {
-    content += '<div class="card">'+EmptyState('ti-users','Your child\'s profile has not been linked yet. Contact your program administrator.')+'</div>';
+    var pendingReq = (d.linkRequests || []).filter(function(r){ return r.status === 'pending'; })[0];
+    if (pendingReq) {
+      var reqName = (pendingReq.student && pendingReq.student.users && pendingReq.student.users.full_name) || 'your child';
+      content += '<div class="card">'+EmptyState('ti-clock','Link request sent for '+reqName+'. An administrator will review it shortly.')+'</div>';
+    } else {
+      content += '<div class="card">' + parentLinkRequestFormHtml() + '</div>';
+    }
     return renderShell(parentNav(), content, 'Dashboard');
   }
 
@@ -2443,11 +2656,13 @@ function adminNav() {
   var d = State.liveData['admin-dashboard'] || {};
   var pendingUsers = (d.users||[]).filter(function(u){ return !u.is_approved; }).length;
   var pendingRewards = (d.rewardRequests||[]).length;
+  var pendingLinks = (d.linkRequests||[]).length;
   return [
     {id:'admin-dashboard', icon:'ti-layout-dashboard', label:'Command center', badge: pendingUsers},
     {id:'admin-students',  icon:'ti-users',            label:'Students'},
     {id:'admin-tutors',    icon:'ti-user-check',       label:'Tutors'},
-    {id:'admin-approvals', icon:'ti-check',            label:'Approvals', badge: pendingRewards},
+    {id:'admin-accounts',  icon:'ti-id',                label:'Accounts'},
+    {id:'admin-approvals', icon:'ti-check',            label:'Approvals', badge: pendingRewards + pendingLinks},
     {id:'admin-rewards',   icon:'ti-gift',             label:'Rewards'},
     {id:'admin-messages',  icon:'ti-messages',         label:'Messages'},
     {id:'admin-hours',     icon:'ti-clock',            label:'Hour reports'},
@@ -2549,19 +2764,45 @@ function adminResolveReward(requestId, approved) {
 
 function renderAdminStudents() {
   if (isLoading('admin-students')) return renderShell(adminNav(), Spinner(), 'Students');
-  var d    = State.liveData['admin-students'] || {};
+  var d     = State.liveData['admin-students'] || {};
   var users = (d.users||[]).filter(function(u){ return u.role==='student'; });
+  var linksByStudent = {};
+  (d.studentLinks || []).forEach(function(s){ linksByStudent[s.id] = s; });
   var content = '<div class="page-header"><div><div class="page-title">Students</div><div class="page-sub">'+users.filter(function(u){return u.is_approved;}).length+' active students</div></div></div>';
-  content += '<div class="card"><div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Joined</th></tr></thead><tbody>';
+  content += '<div class="card"><div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Joined</th><th>Parent</th><th></th></tr></thead><tbody>';
   if (users.length) {
     content += users.map(function(u){
-      return '<tr><td class="table-name">'+Avatar(u.full_name,'purple',30)+'<div><div style="font-size:13px;font-weight:600">'+esc(u.full_name)+'</div></div></td><td style="font-size:12px;color:var(--text-2)">'+esc(u.email)+'</td><td>'+(u.is_approved?Badge('Active','g'):PendingBadge())+'</td><td style="font-size:12px;color:var(--text-3)">'+formatDate(u.created_at)+'</td></tr>';
+      var link = linksByStudent[u.id];
+      var parentName = link && link.parent && link.parent.full_name;
+      return '<tr><td class="table-name">'+Avatar(u.full_name,'purple',30)+'<div><div style="font-size:13px;font-weight:600">'+esc(u.full_name)+'</div></div></td><td style="font-size:12px;color:var(--text-2)">'+esc(u.email)+'</td><td>'+(u.is_approved?Badge('Active','g'):PendingBadge())+'</td><td style="font-size:12px;color:var(--text-3)">'+formatDate(u.created_at)+'</td>'+
+        '<td style="font-size:12px;color:var(--text-2)">'+(parentName?esc(parentName):'<span style="color:var(--text-3)">Not linked</span>')+'</td>'+
+        '<td style="text-align:right">'+(parentName?'<button class="btn btn-secondary btn-sm" onclick="confirmAdminUnlinkParent(\''+esc(u.id)+'\',\''+esc(parentName)+'\')"><i class="ti ti-unlink"></i> Unlink</button>':'')+'</td>'+
+        '</tr>';
     }).join('');
   } else {
-    content += '<tr><td colspan="4" style="text-align:center;color:var(--text-3);padding:32px">No students yet.</td></tr>';
+    content += '<tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:32px">No students yet.</td></tr>';
   }
   content += '</tbody></table></div></div>';
   return renderShell(adminNav(), content, 'Students');
+}
+
+function confirmAdminUnlinkParent(studentId, parentName) {
+  openConfirmModal({
+    title:        'Unlink parent?',
+    body:         parentName + ' will no longer be able to see this student\'s progress, sessions, or messages.',
+    confirmLabel: 'Unlink',
+    danger:       true,
+    onConfirm:    function(){ doAdminUnlinkParent(studentId); },
+  });
+}
+
+function doAdminUnlinkParent(studentId) {
+  DB.adminUnlinkParent(studentId).then(function(r) {
+    if (r && r.error) { toast('Could not unlink. Try again.', 'error'); return; }
+    toast('Parent unlinked.', 'info');
+    bustCache('admin');
+    loadPageData('admin-students');
+  }).catch(function(){ toast('Something went wrong. Please try again.', 'error'); });
 }
 
 function renderAdminTutors() {
@@ -2581,12 +2822,63 @@ function renderAdminTutors() {
   return renderShell(adminNav(), content, 'Tutors');
 }
 
+function renderAdminAccounts() {
+  if (isLoading('admin-accounts')) return renderShell(adminNav(), Spinner(), 'Accounts');
+  var d        = State.liveData['admin-accounts'] || {};
+  var users    = d.users || [];
+  var filter   = State.adminAccountsFilter || 'all';
+  var filtered = filter === 'all' ? users : users.filter(function(u){ return u.role === filter; });
+  var colorMap = { student:'purple', tutor:'green', parent:'amber', admin:'purple' };
+
+  var content = '<div class="page-header"><div><div class="page-title">Accounts</div><div class="page-sub">'+users.length+' total accounts across all roles</div></div></div>';
+  content += '<div class="card">';
+  content += '<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">';
+  content += ['all','student','tutor','parent','admin'].map(function(f){
+    var label = f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1) + 's';
+    return '<button class="btn btn-sm '+(filter===f?'btn-primary':'btn-secondary')+'" onclick="setAdminAccountsFilter(\''+f+'\')">'+label+'</button>';
+  }).join('');
+  content += '</div>';
+  content += '<div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Signed up</th></tr></thead><tbody>';
+  if (filtered.length) {
+    content += filtered.map(function(u){
+      return '<tr><td class="table-name">'+Avatar(u.full_name,colorMap[u.role]||'purple',30)+'<div><div style="font-size:13px;font-weight:600">'+esc(u.full_name)+'</div></div></td>'+
+        '<td style="font-size:12px;color:var(--text-2)">'+esc(u.email)+'</td>'+
+        '<td style="font-size:12px;color:var(--text-2);text-transform:capitalize">'+esc(u.role)+'</td>'+
+        '<td>'+(u.is_approved?Badge('Active','g'):PendingBadge())+'</td>'+
+        '<td style="font-size:12px;color:var(--text-3)">'+formatDate(u.created_at)+'</td></tr>';
+    }).join('');
+  } else {
+    content += '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:32px">No accounts match this filter.</td></tr>';
+  }
+  content += '</tbody></table></div></div>';
+  return renderShell(adminNav(), content, 'Accounts');
+}
+
+function setAdminAccountsFilter(filter) {
+  State.adminAccountsFilter = filter;
+  render();
+}
+
 function renderAdminApprovals() {
   if (isLoading('admin-approvals')) return renderShell(adminNav(), Spinner(), 'Approvals');
-  var d = State.liveData['admin-approvals'] || {};
+  var d        = State.liveData['admin-approvals'] || {};
   var requests = d.rewardRequests || [];
-  var content = '<div class="page-header"><div><div class="page-title">Reward approvals</div><div class="page-sub">'+requests.length+' pending</div></div></div>';
-  content += '<div class="card">';
+  var links    = d.linkRequests   || [];
+  var content  = '<div class="page-header"><div><div class="page-title">Approvals</div><div class="page-sub">'+(requests.length+links.length)+' pending</div></div></div>';
+
+  content += '<div class="card mb-24"><div class="card-title">Parent-student link requests</div>';
+  if (links.length) {
+    content += links.map(function(r){
+      var pName = (r.parent_user && r.parent_user.full_name) || 'Parent';
+      var sName = (r.student && r.student.users && r.student.users.full_name) || 'Student';
+      return '<div class="approval-card" id="lr-'+r.id+'">'+Avatar(pName,'amber',40)+'<div class="approval-info"><div class="approval-name">Parent '+esc(pName)+' requests linking to Student '+esc(sName)+'</div><div class="approval-meta">'+timeAgo(r.created_at)+'</div></div><div class="approval-actions"><button class="btn btn-success" onclick="adminApproveLink(\''+r.id+'\',\''+r.parent_id+'\',\''+r.student_id+'\',\'lr-'+r.id+'\')"><i class="ti ti-check"></i> Approve</button><button class="btn btn-danger" onclick="adminRejectLink(\''+r.id+'\',\'lr-'+r.id+'\')"><i class="ti ti-x"></i> Reject</button></div></div>';
+    }).join('');
+  } else {
+    content += EmptyState('ti-users','No pending link requests.');
+  }
+  content += '</div>';
+
+  content += '<div class="card"><div class="card-title">Reward approvals</div>';
   if (requests.length) {
     content += requests.map(function(r){
       var sName = (r.students && r.students.users && r.students.users.full_name) || 'Student';
@@ -2599,6 +2891,28 @@ function renderAdminApprovals() {
   }
   content += '</div>';
   return renderShell(adminNav(), content, 'Approvals');
+}
+
+function adminApproveLink(requestId, parentId, studentId, elId) {
+  DB.adminApproveLinkRequest(requestId, parentId, studentId).then(function(r) {
+    if (r && r.error) { toast(typeof r.error === 'string' ? r.error : 'Could not approve this request.', 'error'); return; }
+    var el = document.getElementById(elId);
+    if (el) el.remove();
+    toast('Parent linked to student.', 'success');
+    bustCache('admin');
+    loadPageData('admin-approvals');
+  }).catch(function(){ toast('Something went wrong. Please try again.', 'error'); });
+}
+
+function adminRejectLink(requestId, elId) {
+  DB.adminRejectLinkRequest(requestId).then(function(r) {
+    if (r && r.error) { toast('Could not reject this request.', 'error'); return; }
+    var el = document.getElementById(elId);
+    if (el) el.remove();
+    toast('Request rejected.', 'info');
+    bustCache('admin');
+    loadPageData('admin-approvals');
+  }).catch(function(){ toast('Something went wrong. Please try again.', 'error'); });
 }
 
 function renderAdminRewards() {
@@ -2745,7 +3059,7 @@ function exportTutorHoursCSV() {
   var url  = URL.createObjectURL(blob);
   var a    = document.createElement('a');
   a.href     = url;
-  a.download = 'nukhba-tutor-hours.csv';
+  a.download = 'polaris-tutor-hours.csv';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -2828,15 +3142,15 @@ function openAdminThread(pairKey) {
    LEGAL PAGES
    ============================================ */
 function renderTerms() {
-  var nav = '<nav class="nav"><div class="nav-logo"><div class="nav-logo-mark">N</div><div><div class="nav-logo-text">Nukhba</div></div></div><button class="btn btn-ghost" onclick="navigate(\'landing\')">Back to home</button></nav>';
-  var footer = '<footer class="site-footer"><div class="footer-copy">© 2026 Nukhba Tutoring Platform.</div><div class="footer-links"><span class="footer-link" onclick="navigate(\'terms\')">Terms of Use</span><span class="footer-link" onclick="navigate(\'privacy\')">Privacy Policy</span><a class="footer-link" href="mailto:support@nukhba.org">Support</a></div></footer>';
-  return '<div style="min-height:100vh;background:var(--bg)">'+nav+'<div class="legal-page"><h1>Terms of Use</h1><div class="legal-date">Last updated: June 2026</div><p>Please read these Terms of Use carefully before using the Nukhba tutoring platform. By accessing or using our platform, you agree to be bound by these terms.</p><div class="legal-divider"></div><h2>1. About the Platform</h2><p>Nukhba is a free, nonprofit tutoring platform that connects K–12 students with qualified tutors for educational support. The platform is operated on a volunteer and community basis with no commercial intent.</p><h2>2. Eligibility</h2><p>To use this platform you must be a K–12 student, the parent or guardian of a K–12 student, or a qualified tutor — and must be approved by a program administrator before gaining full access.</p><h2>3. User Accounts</h2><p>You are responsible for maintaining the confidentiality of your account credentials. You agree to provide accurate and complete information during registration. Accounts may be suspended or terminated for misuse.</p><h2>4. Acceptable Use</h2><p>You agree not to harass or harm any other user, share inappropriate content, misrepresent your identity, use the platform commercially, or attempt unauthorised access.</p><h2>5. Sessions and Communication</h2><p>All sessions take place through designated video platforms. Communications within the platform may be reviewed by administrators for safety and quality purposes.</p><h2>6. Privacy and Minors</h2><p>We take the privacy of minors seriously. Student data is never sold or shared with third parties. Refer to our Privacy Policy for full details.</p><h2>7. Disclaimers</h2><p>Nukhba provides this platform on an as-is basis and makes no guarantees regarding academic outcomes.</p><h2>8. Limitation of Liability</h2><p>To the fullest extent permitted by law, Nukhba and its administrators shall not be liable for any indirect or consequential damages.</p><h2>9. Changes</h2><p>We may update these Terms periodically. Continued use after changes constitutes acceptance.</p><h2>10. Contact</h2><p>Questions? Email <a href="mailto:support@nukhba.org">support@nukhba.org</a></p></div>'+footer+'</div>';
+  var nav = '<nav class="nav"><div class="nav-logo"><div class="nav-logo-mark">N</div><div><div class="nav-logo-text">Polaris</div></div></div><button class="btn btn-ghost" onclick="navigate(\'landing\')">Back to home</button></nav>';
+  var footer = '<footer class="site-footer"><div class="footer-copy">© 2026 Polaris</div><div class="footer-links"><span class="footer-link" onclick="navigate(\'terms\')">Terms of Use</span><span class="footer-link" onclick="navigate(\'privacy\')">Privacy Policy</span><a class="footer-link" href="mailto:polaris.tutoring.support@gmail.com">Support</a></div></footer>';
+  return '<div style="min-height:100vh;background:var(--bg)">'+nav+'<div class="legal-page"><h1>Terms of Use</h1><div class="legal-date">Last updated: June 2026</div><p>Please read these Terms of Use carefully before using the Polaris tutoring platform. By accessing or using our platform, you agree to be bound by these terms.</p><div class="legal-divider"></div><h2>1. About the Platform</h2><p>Polaris is a free, nonprofit tutoring platform that connects K–12 students with qualified tutors for educational support. The platform is operated on a volunteer and community basis with no commercial intent.</p><h2>2. Eligibility</h2><p>To use this platform you must be a K–12 student, the parent or guardian of a K–12 student, or a qualified tutor — and must be approved by a program administrator before gaining full access.</p><h2>3. User Accounts</h2><p>You are responsible for maintaining the confidentiality of your account credentials. You agree to provide accurate and complete information during registration. Accounts may be suspended or terminated for misuse.</p><h2>4. Acceptable Use</h2><p>You agree not to harass or harm any other user, share inappropriate content, misrepresent your identity, use the platform commercially, or attempt unauthorised access.</p><h2>5. Sessions and Communication</h2><p>All sessions take place through designated video platforms. Communications within the platform may be reviewed by administrators for safety and quality purposes.</p><h2>6. Privacy and Minors</h2><p>We take the privacy of minors seriously. Student data is never sold or shared with third parties. Refer to our Privacy Policy for full details.</p><h2>7. Disclaimers</h2><p>Polaris provides this platform on an as-is basis and makes no guarantees regarding academic outcomes.</p><h2>8. Limitation of Liability</h2><p>To the fullest extent permitted by law, Polaris and its administrators shall not be liable for any indirect or consequential damages.</p><h2>9. Changes</h2><p>We may update these Terms periodically. Continued use after changes constitutes acceptance.</p><h2>10. Contact</h2><p>Questions? Email <a href="mailto:polaris.tutoring.support@gmail.com">polaris.tutoring.support@gmail.com</a></p></div>'+footer+'</div>';
 }
 
 function renderPrivacy() {
-  var nav = '<nav class="nav"><div class="nav-logo"><div class="nav-logo-mark">N</div><div><div class="nav-logo-text">Nukhba</div></div></div><button class="btn btn-ghost" onclick="navigate(\'landing\')">Back to home</button></nav>';
-  var footer = '<footer class="site-footer"><div class="footer-copy">© 2026 Nukhba Tutoring Platform.</div><div class="footer-links"><span class="footer-link" onclick="navigate(\'terms\')">Terms of Use</span><span class="footer-link" onclick="navigate(\'privacy\')">Privacy Policy</span><a class="footer-link" href="mailto:support@nukhba.org">Support</a></div></footer>';
-  return '<div style="min-height:100vh;background:var(--bg)">'+nav+'<div class="legal-page"><h1>Privacy Policy</h1><div class="legal-date">Last updated: July 2026</div><p>Your privacy matters to us. This Policy explains what information we collect, how we use it, and how we protect it — particularly given that our platform serves minors.</p><div class="legal-divider"></div><h2>1. Information We Collect</h2><p>Account information (name, email, role), student profile data (grade, subject, learning style, goals), tutor profile data, session data, platform communications, and points records.</p><h2>2. How We Use It</h2><p>Exclusively to match students with tutors, track academic progress, send session reminders, administer the points system, maintain tutor hour records, and ensure user safety.</p><h2>3. Protection of Minors</h2><p>Parental consent is required for students. Student data is never shared publicly. Students only interact with vetted, approved tutors.</p><h2>4. Message Monitoring</h2><p>Message monitoring: To keep students safe, platform administrators can review messages sent between students, tutors, and parents on Nukhba. We do this only for safeguarding — to protect minors and make sure the platform is used appropriately. We do not sell, share, or use these messages for advertising, analytics, or any purpose other than safety and support. Messages are stored securely and access is limited to authorized administrators.</p><h2>5. Data Sharing</h2><p>We do not sell or share your data with advertisers. Data is shared only with administrators, parents regarding their child, service providers necessary to operate the platform, or when required by law.</p><h2>6. Security</h2><p>Data is stored using Supabase with enterprise-grade encryption and row-level security so users only access authorised data.</p><h2>7. Your Rights</h2><p>You may access, correct, or request deletion of your data by contacting support@nukhba.org.</p><h2>8. Cookies</h2><p>We use minimal session storage only. No advertising cookies or third-party tracking.</p><h2>9. Retention</h2><p>Data is retained while your account is active. Upon deletion, personal data is removed within 30 days.</p><h2>10. Contact</h2><p>Privacy questions: <a href="mailto:support@nukhba.org">support@nukhba.org</a></p></div>'+footer+'</div>';
+  var nav = '<nav class="nav"><div class="nav-logo"><div class="nav-logo-mark">N</div><div><div class="nav-logo-text">Polaris</div></div></div><button class="btn btn-ghost" onclick="navigate(\'landing\')">Back to home</button></nav>';
+  var footer = '<footer class="site-footer"><div class="footer-copy">© 2026 Polaris</div><div class="footer-links"><span class="footer-link" onclick="navigate(\'terms\')">Terms of Use</span><span class="footer-link" onclick="navigate(\'privacy\')">Privacy Policy</span><a class="footer-link" href="mailto:polaris.tutoring.support@gmail.com">Support</a></div></footer>';
+  return '<div style="min-height:100vh;background:var(--bg)">'+nav+'<div class="legal-page"><h1>Privacy Policy</h1><div class="legal-date">Last updated: July 2026</div><p>Your privacy matters to us. This Policy explains what information we collect, how we use it, and how we protect it — particularly given that our platform serves minors.</p><div class="legal-divider"></div><h2>1. Information We Collect</h2><p>Account information (name, email, role), student profile data (grade, subject, learning style, goals), tutor profile data, session data, platform communications, and points records.</p><h2>2. How We Use It</h2><p>Exclusively to match students with tutors, track academic progress, send session reminders, administer the points system, maintain tutor hour records, and ensure user safety.</p><h2>3. Protection of Minors</h2><p>Parental consent is required for students. Student data is never shared publicly. Students only interact with vetted, approved tutors.</p><h2>4. Message Monitoring</h2><p>Message monitoring: To keep students safe, platform administrators can review messages sent between students, tutors, and parents on Polaris. We do this only for safeguarding — to protect minors and make sure the platform is used appropriately. We do not sell, share, or use these messages for advertising, analytics, or any purpose other than safety and support. Messages are stored securely and access is limited to authorized administrators.</p><h2>5. Data Sharing</h2><p>We do not sell or share your data with advertisers. Data is shared only with administrators, parents regarding their child, service providers necessary to operate the platform, or when required by law.</p><h2>6. Security</h2><p>Data is stored using Supabase with enterprise-grade encryption and row-level security so users only access authorised data.</p><h2>7. Your Rights</h2><p>You may access, correct, or request deletion of your data by contacting polaris.tutoring.support@gmail.com.</p><h2>8. Cookies</h2><p>We use minimal session storage only. No advertising cookies or third-party tracking.</p><h2>9. Retention</h2><p>Data is retained while your account is active. Upon deletion, personal data is removed within 30 days.</p><h2>10. Contact</h2><p>Privacy questions: <a href="mailto:polaris.tutoring.support@gmail.com">polaris.tutoring.support@gmail.com</a></p></div>'+footer+'</div>';
 }
 
 /* ============================================
@@ -2872,10 +3186,12 @@ function render() {
     'admin-dashboard':    renderAdminDashboard,
     'admin-students':     renderAdminStudents,
     'admin-tutors':       renderAdminTutors,
+    'admin-accounts':     renderAdminAccounts,
     'admin-approvals':    renderAdminApprovals,
     'admin-rewards':      renderAdminRewards,
     'admin-messages':     renderAdminMessages,
     'admin-hours':        renderAdminHours,
+    'account-settings':   renderAccountSettings,
     'terms':              renderTerms,
     'privacy':            renderPrivacy,
   };
