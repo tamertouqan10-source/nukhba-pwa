@@ -328,7 +328,7 @@ var DB = (function() {
 
   function loadStudentDashboard(userId) {
     return Promise.all([
-      q(function(){ return _supabaseClient.from('students').select('*, users!students_id_fkey(full_name)').eq('id', userId).single(); }),
+      q(function(){ return _supabaseClient.from('students').select('*, users!students_id_fkey(full_name), tutors(users(full_name))').eq('id', userId).single(); }),
       q(function(){ return _supabaseClient.from('sessions').select('*').eq('student_id', userId).order('scheduled_at', { ascending: false }).limit(10); }),
       q(function(){ return _supabaseClient.from('skill_map').select('*').eq('student_id', userId).order('subject'); }),
       q(function(){ return _supabaseClient.from('points_transactions').select('*').eq('student_id', userId).order('created_at', { ascending: false }).limit(20); }),
@@ -386,6 +386,47 @@ var DB = (function() {
       .then(function(r) { return r.data || []; });
   }
 
+  function loadAdminRewards() {
+    return Promise.all([
+      q(function(){ return _supabaseClient.from('rewards').select('*').order('created_at', { ascending: false }); }),
+      q(function(){ return _supabaseClient.from('reward_visibility').select('reward_id, student_id'); }),
+      q(function(){ return _supabaseClient.from('users').select('id, full_name').eq('role', 'student').eq('is_approved', true).order('full_name'); }),
+    ]).then(function(results) {
+      return {
+        rewards:    results[0].data || [],
+        visibility: results[1].data || [],
+        students:   results[2].data || [],
+      };
+    });
+  }
+
+  function createReward(name, description, costPoints) {
+    var cleanName = Sanitize.name(name);
+    var cleanDesc = description ? Sanitize.text(description, 'long') : null;
+    if (!cleanName) return Promise.resolve({ error: 'Invalid title' });
+    if (!Number.isInteger(costPoints) || costPoints < 1) return Promise.resolve({ error: 'Invalid point cost' });
+    return q(function(){
+      return _supabaseClient.from('rewards').insert([{
+        name:        cleanName,
+        description: cleanDesc,
+        cost_points: costPoints,
+        is_active:   true,
+      }]);
+    });
+  }
+
+  function setRewardVisibility(rewardId, studentIds) {
+    if (!rewardId) return Promise.resolve({ error: 'Missing reward ID' });
+    return q(function(){
+      return _supabaseClient.from('reward_visibility').delete().eq('reward_id', rewardId);
+    }).then(function(r) {
+      if (r && r.error) return r;
+      if (!studentIds || !studentIds.length) return { data: [] };
+      var rows = studentIds.map(function(sid){ return { reward_id: rewardId, student_id: sid }; });
+      return q(function(){ return _supabaseClient.from('reward_visibility').insert(rows); });
+    });
+  }
+
   function loadMessages(userId) {
     return q(function(){
       return _supabaseClient.from('messages')
@@ -393,6 +434,15 @@ var DB = (function() {
         .or('sender_id.eq.' + userId + ',receiver_id.eq.' + userId)
         .order('created_at', { ascending: false })
         .limit(50);
+    }).then(function(r) { return r.data || []; });
+  }
+
+  function loadAllMessages() {
+    return q(function(){
+      return _supabaseClient.from('messages')
+        .select('*, sender:users!sender_id(full_name, role), receiver:users!receiver_id(full_name, role)')
+        .order('created_at', { ascending: false })
+        .limit(500);
     }).then(function(r) { return r.data || []; });
   }
 
@@ -715,6 +765,27 @@ var DB = (function() {
     });
   }
 
+  function unmatchPair(studentId, tutorId) {
+    if (!studentId || !tutorId) return Promise.resolve({ error: 'Missing IDs' });
+    return q(function(){
+      return _supabaseClient.from('students').update({ tutor_id: null }).eq('id', studentId);
+    }).then(function(r1) {
+      if (r1 && r1.error) return r1;
+      return q(function(){
+        return _supabaseClient.from('match_requests')
+          .update({ status: 'ended', updated_at: new Date().toISOString() })
+          .eq('student_id', studentId).eq('tutor_id', tutorId).eq('status', 'accepted');
+      });
+    }).then(function(r2) {
+      if (r2 && r2.error) return r2;
+      return q(function(){
+        return _supabaseClient.from('sessions')
+          .update({ status: 'cancelled' })
+          .eq('student_id', studentId).eq('tutor_id', tutorId).eq('status', 'upcoming');
+      });
+    });
+  }
+
   function loadStudentHomework(userId) {
     return q(function(){
       return _supabaseClient
@@ -809,7 +880,11 @@ var DB = (function() {
     loadParentDashboard:  loadParentDashboard,
     loadAdminDashboard:   loadAdminDashboard,
     loadRewards:          loadRewards,
+    loadAdminRewards:     loadAdminRewards,
+    createReward:         createReward,
+    setRewardVisibility:  setRewardVisibility,
     loadMessages:         loadMessages,
+    loadAllMessages:      loadAllMessages,
     saveSessionNote:      saveSessionNote,
     awardPoints:          awardPoints,
     requestReward:        requestReward,
@@ -832,6 +907,7 @@ var DB = (function() {
     sendMatchRequest:           sendMatchRequest,
     cancelMatchRequest:         cancelMatchRequest,
     respondToMatchRequest:      respondToMatchRequest,
+    unmatchPair:                unmatchPair,
     loadStudentHomework:        loadStudentHomework,
     submitStudentHomework:      submitStudentHomework,
     toggleAcceptingStudents:    toggleAcceptingStudents,

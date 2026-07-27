@@ -13,6 +13,7 @@ const State = {
   notifications:    [],   // In-app notifications for current user
   gated:            false,
   matchOverlayOpen: false,
+  pendingConfirm:   null,
   onboarding:       { step: 1, data: {} },
   checklistChecked: new Set(),
   calState:         {},   // { [calKey]: { y, m } } for month calendar navigation
@@ -79,6 +80,33 @@ function closeModalById(id) {
   var el = document.getElementById(id);
   if (el) el.remove();
   if (id === 'login-modal') State.modal = null;
+}
+
+/* ---- GENERIC CONFIRM MODAL ---- */
+function openConfirmModal(opts) {
+  document.getElementById('confirm-modal') && document.getElementById('confirm-modal').remove();
+  State.pendingConfirm = typeof opts.onConfirm === 'function' ? opts.onConfirm : null;
+  var html = '<div class="modal-overlay" id="confirm-modal" onclick="if(event.target===this)closeConfirmModal()">' +
+    '<div class="modal" style="max-width:400px" onclick="event.stopPropagation()">' +
+    '<div style="font-family:var(--font-display);font-size:19px;font-weight:600;color:var(--text-1);margin-bottom:10px">' + esc(opts.title||'Are you sure?') + '</div>' +
+    '<div style="font-size:14px;color:var(--text-2);line-height:1.6;margin-bottom:22px">' + esc(opts.body||'') + '</div>' +
+    '<div style="display:flex;gap:10px">' +
+    '<button class="btn btn-secondary" style="flex:1;justify-content:center" onclick="closeConfirmModal()">Cancel</button>' +
+    '<button class="btn ' + (opts.danger ? 'btn-danger' : 'btn-primary') + '" style="flex:1;justify-content:center" onclick="runConfirmedAction()">' + esc(opts.confirmLabel||'Confirm') + '</button>' +
+    '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function closeConfirmModal() {
+  State.pendingConfirm = null;
+  var el = document.getElementById('confirm-modal');
+  if (el) el.remove();
+}
+
+function runConfirmedAction() {
+  var fn = State.pendingConfirm;
+  closeConfirmModal();
+  if (typeof fn === 'function') fn();
 }
 
 function setUser(role, name, id, needsOnboarding) {
@@ -169,6 +197,8 @@ function loadPageData(page) {
     'admin-approvals':   simpleLoader('admin', DB.loadAdminDashboard),
     'admin-hours':       simpleLoader('admin', DB.loadAdminDashboard),
     'admin-tutors':      simpleLoader('admin', DB.loadAdminDashboard),
+    'admin-rewards':     simpleLoader('admin-rewards', DB.loadAdminRewards),
+    'admin-messages':    simpleLoader('admin-messages', DB.loadAllMessages, function(msgs) { return { messages: msgs }; }),
 
     'student-calendar':  simpleLoader('student-calendar', DB.loadStudentCalendar),
     'student-homework':  simpleLoader('student-homework', DB.loadStudentHomework, function(hw) { return { homework: hw }; }),
@@ -236,6 +266,8 @@ var PAGE_DATA_SOURCE = {
   'admin-approvals':   'admin',
   'admin-hours':       'admin',
   'admin-tutors':      'admin',
+  'admin-rewards':     'admin-rewards',
+  'admin-messages':    'admin-messages',
   'student-calendar':  'student-calendar',
   'student-homework':  'student-homework',
   'tutor-calendar':    'tutor-calendar',
@@ -443,6 +475,8 @@ function StatusBadge(status) {
     'pending':   PendingBadge(),
     'approved':  Badge('Approved','g'),
     'denied':    Badge('Denied','r'),
+    'declined':  Badge('Declined','r'),
+    'ended':     Badge('Ended','gray'),
   };
   return map[status] || Badge(status || '—','gray');
 }
@@ -720,7 +754,7 @@ function renderLanding() {
   parts.push('</div>');
   parts.push('<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid rgba(220,214,206,0.5)">');
   parts.push('<div style="padding:14px 18px;border-right:1px solid rgba(220,214,206,0.5)"><div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Points earned</div><div style="font-family:var(--font-display);font-size:28px;font-weight:600;color:var(--accent)">190</div><div style="font-size:11px;color:var(--teal);margin-top:2px">+40 from streak</div></div>');
-  parts.push('<div style="padding:14px 18px"><div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Streak</div><div style="font-family:var(--font-display);font-size:28px;font-weight:600;color:var(--amber)">7</div><div style="font-size:11px;color:var(--text-3);margin-top:2px">weeks running</div></div>');
+  parts.push('<div style="padding:14px 18px"><div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Streak</div><div style="font-family:var(--font-display);font-size:28px;font-weight:600;color:var(--amber)">3</div><div style="font-size:11px;color:var(--text-3);margin-top:2px">week streak</div></div>');
   parts.push('</div>');
   parts.push('<div style="padding:14px 18px;display:flex;align-items:flex-start;gap:10px">');
   parts.push('<div style="width:34px;height:34px;border-radius:50%;background:var(--teal-soft);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:14px;font-weight:600;color:var(--teal);flex-shrink:0">A</div>');
@@ -1164,6 +1198,15 @@ function renderStudentDashboard() {
                   : '<div class="page-sub">No upcoming sessions scheduled yet.</div>';
   content += '</div><button class="btn btn-primary" onclick="navigate(\'student-sessions\')"><i class="ti ti-calendar-plus"></i> Sessions</button></div>';
 
+  // Your tutor
+  if (s.tutor_id) {
+    var tutorName = (s.tutors && s.tutors.users && s.tutors.users.full_name) || 'Your tutor';
+    content += '<div class="card mb-24" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">';
+    content += '<div style="display:flex;align-items:center;gap:12px">'+Avatar(tutorName,'green',36)+'<div><div style="font-size:13px;font-weight:600;color:var(--text-1)">'+esc(tutorName)+'</div><div style="font-size:11px;color:var(--text-3)">Your tutor</div></div></div>';
+    content += '<button class="btn btn-secondary btn-sm" onclick="confirmUnmatchTutor(\''+esc(s.tutor_id)+'\')"><i class="ti ti-user-x"></i> Remove tutor</button>';
+    content += '</div>';
+  }
+
   // Points card
   content += '<div class="xp-card"><div class="flex items-center justify-between mb-12"><div><div class="xp-big">'+balance+'</div><div class="xp-lbl">Points balance</div></div></div></div>';
 
@@ -1336,7 +1379,7 @@ function renderStudentMessages() {
   var msgs    = d.messages || [];
   var tutorId = d.tutorId || null;
 
-  var content = '<div class="page-header"><div><div class="page-title">Messages</div><div class="page-sub">All conversations are logged for safety</div></div></div>';
+  var content = '<div class="page-header"><div><div class="page-title">Messages</div><div class="page-sub">Conversations may be reviewed by platform admins for safety</div></div></div>';
   content += '<div class="card" style="display:flex;flex-direction:column">';
   content += '<div style="overflow-y:auto;max-height:480px;padding:4px 0">';
   if (msgs.length) {
@@ -1495,6 +1538,53 @@ function withdrawMatchRequest(studentId, tutorId) {
     loadPageData('student-matches');
     checkStudentGate();
   }).catch(function(){ toast('Could not withdraw request.','error'); });
+}
+
+/* ---- UNMATCH (both directions) ---- */
+function performUnmatch(studentId, tutorId, initiator) {
+  DB.unmatchPair(studentId, tutorId).then(function(r) {
+    if (r && r.error) { toast('Could not remove the match. Try again.','error'); return; }
+    toast('Match ended.','success');
+    if (initiator === 'student') {
+      bustCache('student');
+      bustCache('student-messages');
+      bustCache('student-calendar');
+      loadPageData(State.page);
+    } else {
+      bustCache('tutor');
+      bustCache('tutor-requests');
+      bustCache('tutor-messages');
+      bustCache('tutor-calendar');
+      loadPageData('tutor-students');
+      loadPageData('tutor-requests');
+    }
+  }).catch(function(){ toast('Could not remove the match. Try again.','error'); });
+}
+
+function confirmUnmatchTutor(tutorId) {
+  var d    = State.liveData['student-dashboard'] || {};
+  var s    = d.student || {};
+  var name = (s.tutors && s.tutors.users && s.tutors.users.full_name) || 'your tutor';
+  openConfirmModal({
+    title:        'Remove tutor?',
+    body:         'Are you sure you want to remove ' + name + '? This will end your match.',
+    confirmLabel: 'Remove tutor',
+    danger:       true,
+    onConfirm:    function() { performUnmatch(State.user.id, tutorId, 'student'); },
+  });
+}
+
+function confirmUnmatchStudent(studentId) {
+  var d       = State.liveData['tutor-students'] || {};
+  var student = (d.students || []).find(function(x){ return x.id === studentId; }) || {};
+  var name    = (student.users && student.users.full_name) || 'this student';
+  openConfirmModal({
+    title:        'Remove student?',
+    body:         'Are you sure you want to remove ' + name + '? This will end your match.',
+    confirmLabel: 'Remove student',
+    danger:       true,
+    onConfirm:    function() { performUnmatch(studentId, State.user.id, 'tutor'); },
+  });
 }
 
 function renderStudentMatches() {
@@ -1823,7 +1913,7 @@ function renderTutorMessages() {
   var students = d.students || [];
   var parents  = d.parents  || [];
 
-  var content = '<div class="page-header"><div><div class="page-title">Messages</div><div class="page-sub">Conversations with students</div></div></div>';
+  var content = '<div class="page-header"><div><div class="page-title">Messages</div><div class="page-sub">Conversations with students &middot; may be reviewed by platform admins for safety</div></div></div>';
   content += '<div class="card" style="display:flex;flex-direction:column">';
   content += '<div style="overflow-y:auto;max-height:480px;padding:4px 0">';
   if (msgs.length) {
@@ -1873,10 +1963,10 @@ function renderTutorStudents() {
   var content = '<div class="page-header"><div><div class="page-title">My students</div><div class="page-sub">'+students.length+' student'+(students.length!==1?'s':'')+' assigned to you</div></div></div>';
   content += '<div class="card">';
   if (students.length) {
-    content += '<div class="table-wrap"><table class="table"><thead><tr><th>Student</th><th>Subject</th><th>Grade</th><th>Goal</th></tr></thead><tbody>';
+    content += '<div class="table-wrap"><table class="table"><thead><tr><th>Student</th><th>Subject</th><th>Grade</th><th>Goal</th><th></th></tr></thead><tbody>';
     content += students.map(function(s){
       var sName = (s.users && s.users.full_name) || 'Student';
-      return '<tr><td class="table-name">'+Avatar(sName,'purple',30)+'<div><div style="font-size:13px;font-weight:600">'+esc(sName)+'</div></div></td><td>'+(Array.isArray(s.subjects) && s.subjects.length?esc(s.subjects.join(', ')):'—')+'</td><td>'+(s.grade||'—')+'</td><td style="max-width:200px;font-size:12px;color:var(--text-2)">'+(s.goal_description?esc(s.goal_description.slice(0,60))+(s.goal_description.length>60?'…':''):'—')+'</td></tr>';
+      return '<tr><td class="table-name">'+Avatar(sName,'purple',30)+'<div><div style="font-size:13px;font-weight:600">'+esc(sName)+'</div></div></td><td>'+(Array.isArray(s.subjects) && s.subjects.length?esc(s.subjects.join(', ')):'—')+'</td><td>'+(s.grade||'—')+'</td><td style="max-width:200px;font-size:12px;color:var(--text-2)">'+(s.goal_description?esc(s.goal_description.slice(0,60))+(s.goal_description.length>60?'…':''):'—')+'</td><td style="text-align:right"><button class="btn btn-secondary btn-sm" onclick="confirmUnmatchStudent(\''+esc(s.id)+'\')"><i class="ti ti-user-x"></i> Remove</button></td></tr>';
     }).join('');
     content += '</tbody></table></div>';
   } else {
@@ -2210,7 +2300,7 @@ function renderParentMessages() {
   var msgs       = d.messages || [];
   var tutorId    = d.tutorId || null;
 
-  var content = '<div class="page-header"><div><div class="page-title">Messages</div><div class="page-sub">Messages with your child\'s tutor</div></div></div>';
+  var content = '<div class="page-header"><div><div class="page-title">Messages</div><div class="page-sub">Messages with your child\'s tutor &middot; may be reviewed by platform admins for safety</div></div></div>';
   content += '<div class="card" style="display:flex;flex-direction:column">';
   content += '<div style="overflow-y:auto;max-height:480px;padding:4px 0">';
   if (msgs.length) {
@@ -2252,6 +2342,8 @@ function adminNav() {
     {id:'admin-students',  icon:'ti-users',            label:'Students'},
     {id:'admin-tutors',    icon:'ti-user-check',       label:'Tutors'},
     {id:'admin-approvals', icon:'ti-check',            label:'Approvals', badge: pendingRewards},
+    {id:'admin-rewards',   icon:'ti-gift',             label:'Rewards'},
+    {id:'admin-messages',  icon:'ti-messages',         label:'Messages'},
     {id:'admin-hours',     icon:'ti-clock',            label:'Hour reports'},
   ].map(function(i){
     return '<div class="nav-item'+(State.page===i.id?' active':'')+'" onclick="navigate(\''+i.id+'\')"><i class="ti '+i.icon+'"></i> '+i.label+(i.badge?'<span class="nav-badge">'+i.badge+'</span>':'')+'</div>';
@@ -2403,6 +2495,105 @@ function renderAdminApprovals() {
   return renderShell(adminNav(), content, 'Approvals');
 }
 
+function renderAdminRewards() {
+  if (isLoading('admin-rewards')) return renderShell(adminNav(), Spinner(), 'Rewards');
+  var d          = State.liveData['admin-rewards'] || {};
+  var rewards    = d.rewards    || [];
+  var visibility = d.visibility || [];
+
+  var visCount = {};
+  visibility.forEach(function(v){ visCount[v.reward_id] = (visCount[v.reward_id]||0) + 1; });
+
+  var content = '<div class="page-header"><div><div class="page-title">Rewards</div><div class="page-sub">Create rewards and choose which students can see and redeem each one</div></div></div>';
+
+  content += '<div class="card mb-24"><div class="card-title">New reward</div>';
+  content += '<div class="input-group"><label class="input-label">Title</label><input class="input" id="reward-name" placeholder="e.g. Extra homework pass" maxlength="80" /></div>';
+  content += '<div class="input-group"><label class="input-label">Description (optional)</label><textarea class="input" id="reward-desc" rows="3" placeholder="What the student gets" style="resize:vertical;min-height:60px" maxlength="2000"></textarea></div>';
+  content += '<div class="input-group"><label class="input-label">Point cost</label><input class="input" type="number" id="reward-cost" min="1" step="1" placeholder="e.g. 200" /></div>';
+  content += '<button class="btn btn-primary" id="create-reward-btn" onclick="adminCreateReward()"><i class="ti ti-plus"></i> Create reward</button>';
+  content += '</div>';
+
+  content += '<div class="card"><div class="card-title">All rewards</div>';
+  if (rewards.length) {
+    content += rewards.map(function(r){
+      var n = visCount[r.id] || 0;
+      return '<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border-2)">' +
+        '<div style="flex:1"><div style="font-size:14px;font-weight:600;color:var(--text-1)">'+esc(r.name)+'</div>' +
+        (r.description ? '<div style="font-size:12px;color:var(--text-2);margin-top:2px">'+esc(r.description)+'</div>' : '') +
+        '<div style="font-size:11px;color:var(--text-3);margin-top:4px">'+r.cost_points+' pts &middot; visible to '+n+' student'+(n!==1?'s':'')+'</div></div>' +
+        '<button class="btn btn-secondary btn-sm" onclick="openRewardVisibilityModal(\''+esc(r.id)+'\')"><i class="ti ti-users"></i> Manage access</button>' +
+        '</div>';
+    }).join('');
+  } else {
+    content += EmptyState('ti-gift','No rewards created yet.');
+  }
+  content += '</div>';
+  return renderShell(adminNav(), content, 'Rewards');
+}
+
+function adminCreateReward() {
+  var nameEl = document.getElementById('reward-name');
+  var descEl = document.getElementById('reward-desc');
+  var costEl = document.getElementById('reward-cost');
+  var btn    = document.getElementById('create-reward-btn');
+  var cost   = parseInt(costEl.value, 10);
+  if (!nameEl.value.trim()) { toast('Enter a title.','error'); return; }
+  if (!Number.isInteger(cost) || cost < 1) { toast('Enter a valid point cost.','error'); return; }
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span> Creating...';
+  DB.createReward(nameEl.value, descEl.value, cost).then(function(r) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-plus"></i> Create reward';
+    if (r && r.error) { toast('Could not create reward.','error'); return; }
+    toast('Reward created.','success');
+    nameEl.value = ''; descEl.value = ''; costEl.value = '';
+    bustCache('admin-rewards');
+    loadPageData('admin-rewards');
+  });
+}
+
+function openRewardVisibilityModal(rewardId) {
+  var d          = State.liveData['admin-rewards'] || {};
+  var students   = d.students   || [];
+  var visibility = d.visibility || [];
+  var granted = {};
+  visibility.forEach(function(v){ if (v.reward_id === rewardId) granted[v.student_id] = true; });
+
+  document.getElementById('reward-vis-modal') && document.getElementById('reward-vis-modal').remove();
+  var html = '<div class="modal-overlay" id="reward-vis-modal" onclick="if(event.target===this)closeModalById(\'reward-vis-modal\')">';
+  html += '<div class="modal" style="max-width:420px" onclick="event.stopPropagation()">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">' +
+    '<div style="font-family:var(--font-display);font-size:19px;font-weight:600;color:var(--text-1)">Manage access</div>' +
+    '<button onclick="closeModalById(\'reward-vis-modal\')" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);display:flex;align-items:center;justify-content:center;cursor:pointer"><i class="ti ti-x"></i></button></div>';
+  html += '<div id="reward-vis-list" style="max-height:320px;overflow-y:auto;margin-bottom:16px">';
+  html += students.length ? students.map(function(s) {
+    var checked = granted[s.id] ? ' checked' : '';
+    return '<label style="display:flex;align-items:center;gap:10px;padding:8px 0;font-size:13px;color:var(--text-1);cursor:pointer"><input type="checkbox" class="reward-vis-check" value="'+esc(s.id)+'"'+checked+' /> '+esc(s.full_name||'Student')+'</label>';
+  }).join('') : EmptyState('ti-users','No approved students yet.');
+  html += '</div>';
+  html += '<button class="btn btn-primary" id="save-reward-vis-btn" style="width:100%;justify-content:center" onclick="saveRewardVisibility(\''+esc(rewardId)+'\')"><i class="ti ti-check"></i> Save</button>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function saveRewardVisibility(rewardId) {
+  var btn = document.getElementById('save-reward-vis-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span> Saving...'; }
+  var checks = document.querySelectorAll('.reward-vis-check:checked');
+  var ids = Array.prototype.slice.call(checks).map(function(c){ return c.value; });
+  DB.setRewardVisibility(rewardId, ids).then(function(r) {
+    if (r && r.error) {
+      toast('Could not update access.','error');
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-check"></i> Save'; }
+      return;
+    }
+    toast('Access updated.','success');
+    closeModalById('reward-vis-modal');
+    bustCache('admin-rewards');
+    loadPageData('admin-rewards');
+  });
+}
+
 function renderAdminHours() {
   if (isLoading('admin-hours')) return renderShell(adminNav(), Spinner(), 'Hour Reports');
   var d    = State.liveData['admin-hours'] || {};
@@ -2456,6 +2647,77 @@ function exportTutorHoursCSV() {
   toast('Hours exported as CSV.', 'success');
 }
 
+function renderAdminMessages() {
+  if (isLoading('admin-messages')) return renderShell(adminNav(), Spinner(), 'Messages');
+  var d    = State.liveData['admin-messages'] || {};
+  var msgs = d.messages || [];
+
+  var content = '<div class="page-header"><div><div class="page-title">Messages</div><div class="page-sub">Read-only oversight of all platform conversations, for safeguarding</div></div></div>';
+
+  var convos = {};
+  msgs.forEach(function(m) {
+    var ids = [m.sender_id, m.receiver_id].sort();
+    var key = ids.join('_');
+    if (!convos[key]) {
+      var aMeta = m.sender_id === ids[0] ? m.sender : m.receiver;
+      var bMeta = m.sender_id === ids[0] ? m.receiver : m.sender;
+      convos[key] = {
+        key:   key,
+        aName: (aMeta && aMeta.full_name) || 'Unknown',
+        aRole: (aMeta && aMeta.role) || '',
+        bName: (bMeta && bMeta.full_name) || 'Unknown',
+        bRole: (bMeta && bMeta.role) || '',
+        last:  m.created_at,
+        count: 0,
+      };
+    }
+    convos[key].count++;
+    if (m.created_at > convos[key].last) convos[key].last = m.created_at;
+  });
+  var list = Object.keys(convos).map(function(k){ return convos[k]; })
+    .sort(function(a,b){ return new Date(b.last) - new Date(a.last); });
+
+  content += '<div class="card">';
+  if (list.length) {
+    content += list.map(function(c) {
+      return '<div class="alert-item" style="cursor:pointer" onclick="openAdminThread(\''+c.key+'\')">' +
+        '<div style="flex-shrink:0">'+Avatar(c.aName,'purple',40)+'</div>' +
+        '<div style="flex:1"><div class="alert-title">'+esc(c.aName)+' ('+esc(c.aRole)+') &harr; '+esc(c.bName)+' ('+esc(c.bRole)+')</div>' +
+        '<div class="alert-body">'+c.count+' message'+(c.count!==1?'s':'')+' &middot; last active '+timeAgo(c.last)+'</div></div>' +
+        '<i class="ti ti-chevron-right" style="color:var(--text-3)"></i></div>';
+    }).join('');
+  } else {
+    content += EmptyState('ti-messages','No conversations yet.');
+  }
+  content += '</div>';
+  return renderShell(adminNav(), content, 'Messages');
+}
+
+function openAdminThread(pairKey) {
+  var d    = State.liveData['admin-messages'] || {};
+  var msgs = (d.messages || []).filter(function(m) {
+    return [m.sender_id, m.receiver_id].sort().join('_') === pairKey;
+  }).slice().sort(function(a,b){ return new Date(a.created_at) - new Date(b.created_at); });
+
+  document.getElementById('admin-thread-modal') && document.getElementById('admin-thread-modal').remove();
+  var html = '<div class="modal-overlay" id="admin-thread-modal" onclick="if(event.target===this)closeModalById(\'admin-thread-modal\')">';
+  html += '<div class="modal" style="max-width:520px" onclick="event.stopPropagation()">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">' +
+    '<div style="font-family:var(--font-display);font-size:19px;font-weight:600;color:var(--text-1)">Conversation</div>' +
+    '<button onclick="closeModalById(\'admin-thread-modal\')" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);display:flex;align-items:center;justify-content:center;cursor:pointer"><i class="ti ti-x"></i></button></div>';
+  html += '<div style="max-height:420px;overflow-y:auto">';
+  html += msgs.length ? msgs.map(function(m) {
+    var name = (m.sender && m.sender.full_name) || 'Unknown';
+    return '<div style="padding:10px 0;border-bottom:1px solid var(--border-2)">' +
+      '<div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:4px">' +
+      '<span style="font-size:13px;font-weight:600;color:var(--text-1)">'+esc(name)+'</span>' +
+      '<span style="font-size:11px;color:var(--text-3);white-space:nowrap">'+formatDate(m.created_at)+' '+formatTime(m.created_at)+'</span></div>' +
+      '<div style="font-size:13px;color:var(--text-2)">'+esc(m.content)+'</div></div>';
+  }).join('') : EmptyState('ti-message-2','No messages in this conversation.');
+  html += '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
 /* ============================================
    LEGAL PAGES
    ============================================ */
@@ -2468,7 +2730,7 @@ function renderTerms() {
 function renderPrivacy() {
   var nav = '<nav class="nav"><div class="nav-logo"><div class="nav-logo-mark">N</div><div><div class="nav-logo-text">Nukhba</div></div></div><button class="btn btn-ghost" onclick="navigate(\'landing\')">Back to home</button></nav>';
   var footer = '<footer class="site-footer"><div class="footer-copy">© 2026 Nukhba Tutoring Platform.</div><div class="footer-links"><span class="footer-link" onclick="navigate(\'terms\')">Terms of Use</span><span class="footer-link" onclick="navigate(\'privacy\')">Privacy Policy</span><a class="footer-link" href="mailto:support@nukhba.org">Support</a></div></footer>';
-  return '<div style="min-height:100vh;background:var(--bg)">'+nav+'<div class="legal-page"><h1>Privacy Policy</h1><div class="legal-date">Last updated: June 2026</div><p>Your privacy matters to us. This Policy explains what information we collect, how we use it, and how we protect it — particularly given that our platform serves minors.</p><div class="legal-divider"></div><h2>1. Information We Collect</h2><p>Account information (name, email, role), student profile data (grade, subject, learning style, goals), tutor profile data, session data, platform communications, and points records.</p><h2>2. How We Use It</h2><p>Exclusively to match students with tutors, track academic progress, send session reminders, administer the points system, maintain tutor hour records, and ensure user safety.</p><h2>3. Protection of Minors</h2><p>Parental consent is required for students. Student data is never shared publicly. Administrators monitor communications. Students only interact with vetted, approved tutors.</p><h2>4. Data Sharing</h2><p>We do not sell or share your data with advertisers. Data is shared only with administrators, parents regarding their child, service providers necessary to operate the platform, or when required by law.</p><h2>5. Security</h2><p>Data is stored using Supabase with enterprise-grade encryption and row-level security so users only access authorised data.</p><h2>6. Your Rights</h2><p>You may access, correct, or request deletion of your data by contacting support@nukhba.org.</p><h2>7. Cookies</h2><p>We use minimal session storage only. No advertising cookies or third-party tracking.</p><h2>8. Retention</h2><p>Data is retained while your account is active. Upon deletion, personal data is removed within 30 days.</p><h2>9. Contact</h2><p>Privacy questions: <a href="mailto:support@nukhba.org">support@nukhba.org</a></p></div>'+footer+'</div>';
+  return '<div style="min-height:100vh;background:var(--bg)">'+nav+'<div class="legal-page"><h1>Privacy Policy</h1><div class="legal-date">Last updated: July 2026</div><p>Your privacy matters to us. This Policy explains what information we collect, how we use it, and how we protect it — particularly given that our platform serves minors.</p><div class="legal-divider"></div><h2>1. Information We Collect</h2><p>Account information (name, email, role), student profile data (grade, subject, learning style, goals), tutor profile data, session data, platform communications, and points records.</p><h2>2. How We Use It</h2><p>Exclusively to match students with tutors, track academic progress, send session reminders, administer the points system, maintain tutor hour records, and ensure user safety.</p><h2>3. Protection of Minors</h2><p>Parental consent is required for students. Student data is never shared publicly. Students only interact with vetted, approved tutors.</p><h2>4. Message Monitoring</h2><p>Message monitoring: To keep students safe, platform administrators can review messages sent between students, tutors, and parents on Nukhba. We do this only for safeguarding — to protect minors and make sure the platform is used appropriately. We do not sell, share, or use these messages for advertising, analytics, or any purpose other than safety and support. Messages are stored securely and access is limited to authorized administrators.</p><h2>5. Data Sharing</h2><p>We do not sell or share your data with advertisers. Data is shared only with administrators, parents regarding their child, service providers necessary to operate the platform, or when required by law.</p><h2>6. Security</h2><p>Data is stored using Supabase with enterprise-grade encryption and row-level security so users only access authorised data.</p><h2>7. Your Rights</h2><p>You may access, correct, or request deletion of your data by contacting support@nukhba.org.</p><h2>8. Cookies</h2><p>We use minimal session storage only. No advertising cookies or third-party tracking.</p><h2>9. Retention</h2><p>Data is retained while your account is active. Upon deletion, personal data is removed within 30 days.</p><h2>10. Contact</h2><p>Privacy questions: <a href="mailto:support@nukhba.org">support@nukhba.org</a></p></div>'+footer+'</div>';
 }
 
 /* ============================================
@@ -2505,6 +2767,8 @@ function render() {
     'admin-students':     renderAdminStudents,
     'admin-tutors':       renderAdminTutors,
     'admin-approvals':    renderAdminApprovals,
+    'admin-rewards':      renderAdminRewards,
+    'admin-messages':     renderAdminMessages,
     'admin-hours':        renderAdminHours,
     'terms':              renderTerms,
     'privacy':            renderPrivacy,
