@@ -129,7 +129,21 @@ function setUser(role, name, id, needsOnboarding) {
   if (id) {
     Realtime.subscribeNotifications(id, function(notif) {
       State.notifications.unshift(notif);
+      // A notification badge lives in the shared page chrome, so it needs the
+      // full render — but that shouldn't cost the user a message they were
+      // mid-typing on the Messages page. Preserve the compose draft/focus
+      // across the render instead of skipping it.
+      var msgInput = document.getElementById('msg-input');
+      var draft = msgInput ? msgInput.value : null;
+      var hadFocus = msgInput === document.activeElement;
       render();
+      if (draft) {
+        var newInput = document.getElementById('msg-input');
+        if (newInput) {
+          newInput.value = draft;
+          if (hadFocus) newInput.focus();
+        }
+      }
     });
   }
   render();
@@ -169,9 +183,7 @@ function loadPageData(page) {
         setLoading(page, false);
         if (State.page === page) render();
         Realtime.subscribeMessages(uid, function(msg) {
-          var d = State.liveData[page];
-          if (d && d.messages) d.messages.unshift(msg);
-          if (State.page === page) render();
+          appendMessageToList(page, msg);
         });
       }).catch(function(){ setLoading(page, false); });
     };
@@ -639,21 +651,18 @@ function sendMsg() {
   if (!toId) { toast('No recipient configured.', 'error'); return; }
   var uid = State.user && State.user.id;
   if (!uid) return;
+  var page = State.page;
   input.disabled = true;
   DB.sendMessage(uid, toId, content).then(function(r) {
     input.disabled = false;
     if (r && r.error) { toast('Could not send message. Try again.', 'error'); return; }
-    var d = State.liveData[State.page];
-    if (d && Array.isArray(d.messages)) {
-      d.messages.unshift({
-        sender_id: uid, receiver_id: toId,
-        content: content,
-        created_at: new Date().toISOString(),
-        sender: { full_name: State.user.name },
-      });
-    }
+    appendMessageToList(page, {
+      sender_id: uid, receiver_id: toId,
+      content: content,
+      created_at: new Date().toISOString(),
+      sender: { full_name: State.user.name },
+    });
     input.value = '';
-    render();
   }).catch(function() {
     input.disabled = false;
     toast('Failed to send message.', 'error');
@@ -1029,6 +1038,7 @@ function onboardingSubmit() {
   var role = State.user.role;
   var data = State.onboarding.data;
   var uid  = State.user.id;
+  var profileSaved = Promise.resolve();
   if (_supabaseClient && uid) {
     if (role === 'student') {
       var studentRow = {
@@ -1040,11 +1050,11 @@ function onboardingSubmit() {
         learning_method: data.learning_method || null,
         preferred_style: data.preferred_style || null,
       };
-      _supabaseClient.from('students').upsert([studentRow], { onConflict: 'id' }).then(function(r){
+      profileSaved = _supabaseClient.from('students').upsert([studentRow], { onConflict: 'id' }).then(function(r){
         if (r.error) {
           console.warn('[Onboarding] Full upsert failed, trying minimal insert:', r.error);
           // Fallback: insert only columns that existed before the new migrations
-          _supabaseClient.from('students').upsert([{
+          return _supabaseClient.from('students').upsert([{
             id: uid,
             pace_preference: data.pace_preference || null,
             grade: parseInt(data.grade, 10) || null,
@@ -1053,7 +1063,7 @@ function onboardingSubmit() {
             if (r2.error) console.warn('[Onboarding] Fallback insert also failed:', r2.error);
           });
         }
-      });
+      }).catch(function(e){ console.warn('[Onboarding] Profile save failed:', e); });
     } else if (role === 'tutor') {
       _supabaseClient.from('tutors').upsert([{
         id: uid,
@@ -1072,12 +1082,19 @@ function onboardingSubmit() {
     }
   }
   State.user.onboarded = true;
-  if (role === 'student') { State.gated = true; State.matchOverlayOpen = true; }
+  if (role === 'student') {
+    State.gated = true;
+    State.matchOverlayOpen = true;
+    // Wait for the student profile write to land before computing matches —
+    // otherwise the compatibility query can run against a not-yet-written
+    // row and score everyone 0%.
+    setLoading('student-matches', true);
+  }
   State.page = role + '-dashboard';
   toast('Profile saved. Welcome to Nukhba.', 'success');
   render();
   loadPageData(State.page);
-  if (role === 'student') loadPageData('student-matches');
+  if (role === 'student') profileSaved.then(function(){ loadPageData('student-matches'); });
 }
 
 function runMatchEngine(studentId) {
@@ -1373,6 +1390,45 @@ function markAndJoin(sessionId, btn) {
   DB.markStudentJoined(sessionId).catch(function(){});
 }
 
+// Bubble style per messages page — shared by full render and the incremental
+// append path (see appendMessageToList) so a single new message doesn't need
+// a full app.innerHTML re-render.
+var MSG_BUBBLE_STYLE = {
+  'student-messages': { avatarColor: 'purple', bubbleAccent: 'var(--accent-soft)' },
+  'tutor-messages':   { avatarColor: 'green',  bubbleAccent: 'var(--teal-soft)' },
+  'parent-messages':  { avatarColor: 'amber',  bubbleAccent: 'var(--amber-soft)' },
+};
+
+function messageBubbleHtml(m, style) {
+  var fromMe = m.sender_id === State.user.id;
+  var name   = fromMe ? 'You' : (m.sender && m.sender.full_name ? esc(m.sender.full_name) : 'Unknown');
+  var avatarName = fromMe ? (State.user.name || 'You') : ((m.sender && m.sender.full_name) || '?');
+  return '<div style="display:flex;gap:10px;padding:12px 0;border-bottom:1px solid var(--border-2)'+(fromMe?';flex-direction:row-reverse':'')+'">'+
+    Avatar(avatarName, style.avatarColor, 32)+
+    '<div style="flex:1;display:flex;flex-direction:column;'+(fromMe?'align-items:flex-end':'align-items:flex-start')+'">'+
+    '<div style="display:flex;gap:8px;'+(fromMe?'flex-direction:row-reverse':'')+';margin-bottom:4px">'+
+    '<div style="font-size:13px;font-weight:600;color:var(--text-1)">'+name+'</div>'+
+    '<div style="font-size:11px;color:var(--text-3)">'+timeAgo(m.created_at)+'</div></div>'+
+    '<div style="font-size:13px;color:var(--text-2);background:'+(fromMe?style.bubbleAccent:'var(--surface-2)')+';padding:8px 12px;border-radius:var(--r-md);max-width:80%">'+esc(m.content)+'</div></div></div>';
+}
+
+// Appends one new message (sent locally, or pushed via Realtime) without a
+// full page re-render, so the compose input doesn't lose focus/value and the
+// rest of the app (nav, header, other pages) isn't touched. Falls back to a
+// full render() only for the rare case where the list was showing the empty
+// state (first message of a conversation) or the DOM isn't in the expected shape.
+function appendMessageToList(page, m) {
+  var d = State.liveData[page];
+  var hadMessages = !!(d && Array.isArray(d.messages) && d.messages.length);
+  if (d && Array.isArray(d.messages)) d.messages.push(m);
+  if (State.page !== page) return; // not viewing this page — data is cached for next visit, no DOM work needed
+  var style = MSG_BUBBLE_STYLE[page];
+  var list  = document.getElementById('msg-list');
+  if (!list || !hadMessages || !style) { render(); return; }
+  list.insertAdjacentHTML('beforeend', messageBubbleHtml(m, style));
+  list.scrollTop = list.scrollHeight;
+}
+
 function renderStudentMessages() {
   if (isLoading('student-messages')) return renderShell(studentNav(), Spinner(), 'Messages');
   var d       = State.liveData['student-messages'] || {};
@@ -1381,18 +1437,9 @@ function renderStudentMessages() {
 
   var content = '<div class="page-header"><div><div class="page-title">Messages</div><div class="page-sub">Conversations may be reviewed by platform admins for safety</div></div></div>';
   content += '<div class="card" style="display:flex;flex-direction:column">';
-  content += '<div style="overflow-y:auto;max-height:480px;padding:4px 0">';
+  content += '<div id="msg-list" style="overflow-y:auto;max-height:480px;padding:4px 0">';
   if (msgs.length) {
-    content += msgs.map(function(m){
-      var fromMe = m.sender_id === State.user.id;
-      var name   = fromMe ? 'You' : (m.sender && m.sender.full_name ? esc(m.sender.full_name) : 'Unknown');
-      return '<div style="display:flex;gap:10px;padding:12px 0;border-bottom:1px solid var(--border-2)">'+
-        Avatar(name,'purple',32)+
-        '<div style="flex:1"><div style="display:flex;justify-content:space-between;margin-bottom:4px">'+
-        '<div style="font-size:13px;font-weight:600;color:var(--text-1)">'+name+'</div>'+
-        '<div style="font-size:11px;color:var(--text-3)">'+timeAgo(m.created_at)+'</div></div>'+
-        '<div style="font-size:13px;color:var(--text-2)">'+esc(m.content)+'</div></div></div>';
-    }).join('');
+    content += msgs.map(function(m){ return messageBubbleHtml(m, MSG_BUBBLE_STYLE['student-messages']); }).join('');
   } else {
     content += EmptyState('ti-message-2','No messages yet. Your tutor will reach out before your first session.');
   }
@@ -1915,18 +1962,9 @@ function renderTutorMessages() {
 
   var content = '<div class="page-header"><div><div class="page-title">Messages</div><div class="page-sub">Conversations with students &middot; may be reviewed by platform admins for safety</div></div></div>';
   content += '<div class="card" style="display:flex;flex-direction:column">';
-  content += '<div style="overflow-y:auto;max-height:480px;padding:4px 0">';
+  content += '<div id="msg-list" style="overflow-y:auto;max-height:480px;padding:4px 0">';
   if (msgs.length) {
-    content += msgs.map(function(m){
-      var fromMe = m.sender_id === State.user.id;
-      var name   = fromMe ? 'You' : esc((m.sender && m.sender.full_name) || 'Unknown');
-      return '<div style="display:flex;gap:10px;padding:12px 0;border-bottom:1px solid var(--border-2)">'+
-        Avatar(fromMe ? State.user.name : ((m.sender && m.sender.full_name)||'?'), 'green', 32)+
-        '<div style="flex:1"><div style="display:flex;justify-content:space-between;margin-bottom:4px">'+
-        '<div style="font-size:13px;font-weight:600;color:var(--text-1)">'+name+'</div>'+
-        '<div style="font-size:11px;color:var(--text-3)">'+timeAgo(m.created_at)+'</div></div>'+
-        '<div style="font-size:13px;color:var(--text-2)">'+esc(m.content)+'</div></div></div>';
-    }).join('');
+    content += msgs.map(function(m){ return messageBubbleHtml(m, MSG_BUBBLE_STYLE['tutor-messages']); }).join('');
   } else {
     content += EmptyState('ti-message-2','No messages yet. Send a message to one of your students below.');
   }
@@ -2302,18 +2340,9 @@ function renderParentMessages() {
 
   var content = '<div class="page-header"><div><div class="page-title">Messages</div><div class="page-sub">Messages with your child\'s tutor &middot; may be reviewed by platform admins for safety</div></div></div>';
   content += '<div class="card" style="display:flex;flex-direction:column">';
-  content += '<div style="overflow-y:auto;max-height:480px;padding:4px 0">';
+  content += '<div id="msg-list" style="overflow-y:auto;max-height:480px;padding:4px 0">';
   if (msgs.length) {
-    content += msgs.map(function(m){
-      var fromMe = m.sender_id === State.user.id;
-      var name   = fromMe ? 'You' : (m.sender && m.sender.full_name ? esc(m.sender.full_name) : 'Unknown');
-      return '<div style="display:flex;gap:10px;padding:12px 0;border-bottom:1px solid var(--border-2)">'+
-        Avatar(name,'amber',32)+
-        '<div style="flex:1"><div style="display:flex;justify-content:space-between;margin-bottom:4px">'+
-        '<div style="font-size:13px;font-weight:600;color:var(--text-1)">'+name+'</div>'+
-        '<div style="font-size:11px;color:var(--text-3)">'+timeAgo(m.created_at)+'</div></div>'+
-        '<div style="font-size:13px;color:var(--text-2)">'+esc(m.content)+'</div></div></div>';
-    }).join('');
+    content += msgs.map(function(m){ return messageBubbleHtml(m, MSG_BUBBLE_STYLE['parent-messages']); }).join('');
   } else {
     content += EmptyState('ti-message-2','No messages yet. Your child\'s tutor will reach out with updates.');
   }
@@ -2776,6 +2805,10 @@ function render() {
 
   var fn = pageMap[State.page] || renderLanding;
   app.innerHTML = fn();
+
+  // Chat message lists render oldest-first; keep the newest message in view
+  var msgList = document.getElementById('msg-list');
+  if (msgList) msgList.scrollTop = msgList.scrollHeight;
 
   // Full-screen tutor-matching overlay for gated students
   if (State.matchOverlayOpen && State.user && State.user.role === 'student' && State.page !== 'onboarding') {

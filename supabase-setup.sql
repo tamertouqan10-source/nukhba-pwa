@@ -135,6 +135,11 @@ CREATE POLICY "Session read access"
   );
 
 -- messages: sender or receiver may read; only sender may insert.
+-- The app subscribes to INSERTs on this table via Supabase Realtime
+-- (see Realtime.subscribeMessages in supabase.js) — after running this,
+-- enable Realtime for it:
+--   Supabase Dashboard > Database > Replication > Tables > messages
+-- Without that toggle, new messages will only appear after a manual reload.
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Message read access"   ON public.messages;
 DROP POLICY IF EXISTS "Message insert access" ON public.messages;

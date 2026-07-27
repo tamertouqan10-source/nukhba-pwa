@@ -434,7 +434,7 @@ var DB = (function() {
         .or('sender_id.eq.' + userId + ',receiver_id.eq.' + userId)
         .order('created_at', { ascending: false })
         .limit(50);
-    }).then(function(r) { return r.data || []; });
+    }).then(function(r) { return (r.data || []).reverse(); });
   }
 
   function loadAllMessages() {
