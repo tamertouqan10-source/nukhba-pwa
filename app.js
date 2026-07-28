@@ -2231,7 +2231,7 @@ function renderTutorNotes() {
   State.hwAssigned = null;
   var d        = State.liveData['tutor-notes'] || {};
   var sessions = d.sessions || [];
-  var content = '<div class="page-header"><div><div class="page-title">Session notes</div><div class="page-sub">Complete the checklist — AI drafts the note for you</div></div></div>';
+  var content = '<div class="page-header"><div><div class="page-title">Session notes</div><div class="page-sub">Complete the checklist to build your session note</div></div></div>';
   content += '<div class="grid-2">';
   content += '<div>';
   content += '<div class="card mb-16"><div class="card-title">Session details</div>';
@@ -2252,27 +2252,27 @@ function renderTutorNotes() {
   content += '<div class="input-group"><label class="input-label">Understanding (1–5)</label><select class="select" id="rating-select"><option>5 — Excellent</option><option>4 — Good</option><option selected>3 — Moderate</option><option>2 — Struggled</option><option>1 — Did not grasp</option></select></div>';
   content += '<div class="input-group"><label class="input-label">Flag for next session</label><input class="input" id="note-flag" placeholder="e.g. Negative coefficients need more work" maxlength="300" /></div>';
   content += '<div class="input-group"><label class="input-label">Did you assign homework in this session?</label><div style="display:flex;gap:8px;margin-top:4px"><button id="hw-yes" class="btn btn-secondary" style="flex:1" onclick="setHwToggle(true)"><i class="ti ti-check"></i> Yes</button><button id="hw-no" class="btn btn-secondary" style="flex:1" onclick="setHwToggle(false)"><i class="ti ti-x"></i> No</button></div></div></div>';
-  content += '<button class="btn btn-primary" style="width:100%" onclick="generateNote()"><i class="ti ti-sparkles"></i> Generate session note</button>';
+  content += '<button class="btn btn-primary" style="width:100%" onclick="previewNote()"><i class="ti ti-file-text"></i> Preview note</button>';
   content += '</div>';
-  content += '<div class="card" id="note-output"><div class="card-title">Drafted note</div>'+EmptyState('ti-file-text','Complete the checklist and click Generate — your session note will appear here.')+'</div>';
+  content += '<div class="card" id="note-output"><div class="card-title">Note preview</div>'+EmptyState('ti-file-text','Complete the checklist and click Preview — your session note will appear here.')+'</div>';
   content += '</div>';
   return renderShell(tutorNav(), content, 'Session Notes');
 }
 
-function generateNote() {
+function previewNote() {
   var flag = (document.getElementById('note-flag')||{}).value||'';
   var hw   = State.hwAssigned;
   var date = (document.getElementById('note-date')||{}).value||new Date().toLocaleDateString();
   var noteEl = document.getElementById('note-output');
   if (!noteEl) return;
   var checked = Array.from(State.checklistChecked).map(function(i){ return CHECKLIST_TOPICS[i]; });
-  noteEl.innerHTML = '<div class="card-title" style="display:flex;justify-content:space-between;align-items:center">Drafted note<span style="font-size:11px;color:var(--teal);display:flex;align-items:center;gap:4px"><i class="ti ti-check-circle"></i> Ready to review</span></div>';
+  noteEl.innerHTML = '<div class="card-title" style="display:flex;justify-content:space-between;align-items:center">Note preview<span style="font-size:11px;color:var(--teal);display:flex;align-items:center;gap:4px"><i class="ti ti-check-circle"></i> Ready to save</span></div>';
   noteEl.innerHTML += '<div style="font-size:13px;line-height:1.8;color:var(--text-2);background:var(--surface-2);border-radius:var(--r-md);padding:16px;margin-bottom:14px"><strong style="color:var(--text-1)">Session — '+esc(date)+'</strong><br><br>';
   if (checked.length) noteEl.innerHTML += 'Topics covered this session: '+esc(checked.join(', '))+'.<br><br>';
   if (flag)           noteEl.innerHTML += '<strong style="color:var(--amber)">Flag for next session:</strong> '+esc(flag)+'<br>';
   if (hw !== null)    noteEl.innerHTML += '<strong style="color:var(--text-1)">Homework assigned:</strong> '+(hw ? 'Yes' : 'No');
   noteEl.innerHTML += '</div>';
-  noteEl.innerHTML += '<div style="display:flex;gap:8px"><button id="note-save-btn" class="btn btn-success" style="flex:1" onclick="saveTutorNote()"><i class="ti ti-check"></i> Approve & save</button></div>';
+  noteEl.innerHTML += '<div style="display:flex;gap:8px"><button id="note-save-btn" class="btn btn-success" style="flex:1" onclick="saveTutorNote()"><i class="ti ti-check"></i> Save note</button></div>';
 }
 
 function saveTutorNote() {
