@@ -2445,6 +2445,10 @@ function parentLinkRequestFormHtml() {
     '<button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="submitParentLinkRequestUI()"><i class="ti ti-send"></i> Send link request</button>';
 }
 
+// Read-only autocomplete: this only ever calls DB.searchUnlinkedStudents,
+// a SELECT-only RPC. Nothing in this function writes to parent_link_requests
+// — the only write is DB.submitParentLinkRequest, called exclusively from
+// submitParentLinkRequestUI() when the "Send link request" button is clicked.
 var parentLinkSearchTimer = null;
 function parentLinkSearchInput(value) {
   var input = document.getElementById('parent-link-search');
@@ -2453,7 +2457,7 @@ function parentLinkSearchInput(value) {
   var term = (value || '').trim();
   var dropdown = document.getElementById('parent-link-dropdown');
   if (!dropdown) return;
-  if (term.length < 2) { dropdown.style.display = 'none'; dropdown.innerHTML = ''; return; }
+  if (!term) { dropdown.style.display = 'none'; dropdown.innerHTML = ''; return; }
   parentLinkSearchTimer = setTimeout(function() {
     DB.searchUnlinkedStudents(term).then(function(results) {
       var dd = document.getElementById('parent-link-dropdown');

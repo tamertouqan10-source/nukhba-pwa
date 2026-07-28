@@ -1,4 +1,4 @@
-const CACHE = 'nukhba-v15';
+const CACHE = 'nukhba-v16';
 const ASSETS = ['/', '/index.html', '/styles/main.css', '/app.js', '/supabase.js', '/manifest.json', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png', '/favicon.ico', '/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
