@@ -1087,26 +1087,41 @@ var Realtime = (function() {
   function subscribe(key, table, filterCol, userId, cb) {
     if (!_supabaseClient) return;
     var k = key + '-' + userId;
-    if (channels[k]) return; // already subscribed
-    channels[k] = _supabaseClient.channel(k)
+    if (channels[k]) return; // already subscribed — guards against re-render/re-login re-subscribing
+    // CLOSED is not a failure — it's the normal status Supabase reports
+    // *as a result of* removeChannel() being called (by us here, or by
+    // unsubscribeAll() elsewhere). Calling removeChannel() again in
+    // reaction to CLOSED made every teardown immediately produce another
+    // CLOSED event, which called removeChannel() again, forever — that
+    // synchronous loop (no await between iterations) is what blew the call
+    // stack. `torndown` makes the one real removeChannel() call below
+    // idempotent so its own resulting CLOSED is ignored instead of looping.
+    var torndown = false;
+    // Build and register the channel BEFORE calling .subscribe() — so
+    // channels[k] is already set no matter whether the status callback
+    // below fires asynchronously (the normal case) or synchronously.
+    var channel = _supabaseClient.channel(k)
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: table,
         filter: filterCol + '=eq.' + userId,
       }, function(payload) {
-        console.log('[Realtime] INSERT received on ' + k, payload.new); // TEMP — remove once confirmed live in prod
         if (cb) cb(payload.new);
-      })
-      .subscribe(function(status, err) {
-        console.log('[Realtime] ' + k + ' status:', status, err || '');
-        // Let a future subscribe() call retry instead of staying silently broken forever.
-        // Must actually remove the channel (not just forget it here), otherwise the
-        // errored channel keeps its own internal reconnect/callback wiring alive and
-        // a later resubscribe stacks a second live channel on the same topic.
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          _supabaseClient.removeChannel(channels[k]);
-          delete channels[k];
-        }
       });
+    channels[k] = channel;
+    channel.subscribe(function(status, err) {
+      if (torndown) return;
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        torndown = true;
+        if (channels[k] === channel) delete channels[k];
+        _supabaseClient.removeChannel(channel);
+        if (err) console.warn('[Realtime] ' + k + ' failed:', status, err);
+      } else if (status === 'CLOSED') {
+        // Closed by someone else (e.g. unsubscribeAll()) — just forget our
+        // bookkeeping so a future subscribe() can open a fresh channel.
+        // Never call removeChannel() here; that's the recursive trigger.
+        if (channels[k] === channel) delete channels[k];
+      }
+    });
   }
   function subscribeMessages(userId, onMessage) {
     subscribe('messages', 'messages', 'receiver_id', userId, onMessage);
