@@ -419,7 +419,12 @@ var DB = (function() {
     // constraint (RLS still only allows this when the student is unlinked).
     return q(function(){
       return _supabaseClient.from('parent_link_requests')
-        .upsert([{ parent_id: parentId, student_id: studentId, status: 'pending' }], { onConflict: 'parent_id,student_id' });
+        .upsert([{ parent_id: parentId, student_id: studentId, status: 'pending' }], { onConflict: 'parent_id,student_id' })
+        .select('id');
+    }).then(function(r) {
+      if (r.error) return r;
+      if (!r.data || !r.data.length) return { error: 'Could not send the request — you may not have permission to link this student.' };
+      return r;
     });
   }
 
@@ -432,12 +437,21 @@ var DB = (function() {
       if (sr.data && sr.data.parent_id && sr.data.parent_id !== parentId) {
         return { error: 'This student is already linked to a different parent.' };
       }
+      // .select() on the update is required here: if RLS blocks the write,
+      // Supabase resolves with no .error and zero rows rather than throwing —
+      // without checking r1.data.length that looks like a success and the
+      // request silently stays 'pending' forever, reappearing on refresh.
       return q(function(){
-        return _supabaseClient.from('students').update({ parent_id: parentId }).eq('id', studentId);
+        return _supabaseClient.from('students').update({ parent_id: parentId }).eq('id', studentId).select('id');
       }).then(function(r1) {
         if (r1.error) return r1;
+        if (!r1.data || !r1.data.length) return { error: 'Could not link the student — you may not have permission.' };
         return q(function(){
-          return _supabaseClient.from('parent_link_requests').update({ status: 'approved' }).eq('id', requestId);
+          return _supabaseClient.from('parent_link_requests').update({ status: 'approved' }).eq('id', requestId).select('id');
+        }).then(function(r2) {
+          if (r2.error) return r2;
+          if (!r2.data || !r2.data.length) return { error: 'Student was linked, but the request could not be marked approved.' };
+          return r2;
         });
       });
     });
@@ -446,14 +460,22 @@ var DB = (function() {
   function adminRejectLinkRequest(requestId) {
     if (!requestId) return Promise.resolve({ error: 'Missing request ID' });
     return q(function(){
-      return _supabaseClient.from('parent_link_requests').update({ status: 'rejected' }).eq('id', requestId);
+      return _supabaseClient.from('parent_link_requests').update({ status: 'rejected' }).eq('id', requestId).select('id');
+    }).then(function(r) {
+      if (r.error) return r;
+      if (!r.data || !r.data.length) return { error: 'Could not reject this request — you may not have permission.' };
+      return r;
     });
   }
 
   function adminUnlinkParent(studentId) {
     if (!studentId) return Promise.resolve({ error: 'Missing student ID' });
     return q(function(){
-      return _supabaseClient.from('students').update({ parent_id: null }).eq('id', studentId);
+      return _supabaseClient.from('students').update({ parent_id: null }).eq('id', studentId).select('id');
+    }).then(function(r) {
+      if (r.error) return r;
+      if (!r.data || !r.data.length) return { error: 'Could not unlink — you may not have permission.' };
+      return r;
     });
   }
 
