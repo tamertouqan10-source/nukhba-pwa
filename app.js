@@ -19,6 +19,7 @@ const State = {
   calState:         {},   // { [calKey]: { y, m } } for month calendar navigation
   calEvents:        {},   // { [calKey]: [{date, label, type, time, link}] }
   adminAccountsFilter: 'all',
+  selectedChildId:  null, // parent portal: which linked child's data is shown
 };
 
 /* ---- HELPERS ---- */
@@ -119,6 +120,7 @@ function setUser(role, name, id, needsOnboarding) {
   State.liveData        = {};
   State.dataTimestamps  = {};
   State.notifications   = [];
+  State.selectedChildId = null;
   if (needsOnboarding && role !== 'admin') {
     State.page = 'onboarding';
   } else {
@@ -225,10 +227,20 @@ function loadPageData(page) {
       function(r) { return { messages: r[0], tutorId: r[1] }; }),
 
     'parent-messages': messagesLoader('parent-messages',
-      function() { return Promise.all([DB.loadMessages(uid), DB.loadParentDashboard(uid)]); },
+      function() {
+        // Needs the child list first: with multiple children (each
+        // possibly a different tutor) the messages query below has to be
+        // sized for that many simultaneous threads sharing one top-N fetch.
+        return DB.loadParentDashboard(uid).then(function(pd) {
+          var students   = pd.students || [];
+          var tutorCount = students.filter(function(s){ return s.tutor_id; }).length || 1;
+          return DB.loadMessages(uid, 50 * tutorCount).then(function(msgs) {
+            return [msgs, pd];
+          });
+        });
+      },
       function(r) {
-        var child = (r[1].students || [])[0] || {};
-        return { messages: r[0], tutorId: child.tutor_id || null };
+        return { messages: r[0], students: r[1].students || [] };
       }),
 
     'tutor-messages': messagesLoader('tutor-messages',
@@ -1518,12 +1530,28 @@ function messageBubbleHtml(m, style) {
 // state (first message of a conversation) or the DOM isn't in the expected shape.
 function appendMessageToList(page, m) {
   var d = State.liveData[page];
-  var hadMessages = !!(d && Array.isArray(d.messages) && d.messages.length);
   if (d && Array.isArray(d.messages)) d.messages.push(m);
   if (State.page !== page) return; // not viewing this page — data is cached for next visit, no DOM work needed
+  // parent-messages shows one child's tutor thread at a time (see
+  // renderParentMessages); a message for a different child's tutor belongs
+  // to a thread not currently on screen, so leave it stored (already pushed
+  // above) without touching the visible list — it'll show up when that
+  // child is selected. tutor-messages is a merged inbox of every
+  // student/parent, so this check doesn't apply there.
+  if (page === 'parent-messages') {
+    var compose = document.getElementById('msg-compose');
+    var threadTutorId = compose && compose.getAttribute('data-to');
+    if (threadTutorId && m.sender_id !== threadTutorId && m.receiver_id !== threadTutorId) return;
+  }
   var style = MSG_BUBBLE_STYLE[page];
   var list  = document.getElementById('msg-list');
-  if (!list || !hadMessages || !style) { render(); return; }
+  if (!list || !style) { render(); return; }
+  // Check the DOM, not d.messages.length: for parent-messages d.messages is
+  // now every child's tutor combined, while #msg-list only ever shows the
+  // selected child's thread, so the two can disagree about whether the
+  // visible thread was empty. Falling back to render() when an empty-state
+  // placeholder is still on screen swaps it out correctly either way.
+  if (list.querySelector('.empty-state')) { render(); return; }
   list.insertAdjacentHTML('beforeend', messageBubbleHtml(m, style));
   list.scrollTop = list.scrollHeight;
 }
@@ -2433,6 +2461,41 @@ function parentNav() {
   }).join('');
 }
 
+/* ---- PARENT CHILD SWITCHER ----
+   A parent can be linked to any number of children (students.parent_id is
+   many-to-one already). State.selectedChildId tracks which one is currently
+   shown across Dashboard/Progress/Sessions/Messages; it's a single global so
+   switching on one page carries over when navigating to another. */
+function getSelectedChildId(students) {
+  if (!students || !students.length) return null;
+  var sel = State.selectedChildId;
+  if (sel && students.some(function(s){ return s.id === sel; })) return sel;
+  return students[0].id;
+}
+
+function getSelectedChild(students) {
+  var id = getSelectedChildId(students);
+  return (students || []).filter(function(s){ return s.id === id; })[0] || {};
+}
+
+function switchParentChild(childId) {
+  State.selectedChildId = childId;
+  render();
+}
+
+// Minimal by design: hidden entirely for a single child, a row of pill
+// buttons (matches the admin-accounts filter pattern) for more than one.
+function childSwitcherHtml(students) {
+  if (!students || students.length < 2) return '';
+  var selectedId = getSelectedChildId(students);
+  return '<div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap">' +
+    students.map(function(s){
+      var name = (s.users && s.users.full_name) || 'Child';
+      return '<button class="btn btn-sm '+(s.id===selectedId?'btn-primary':'btn-secondary')+'" onclick="switchParentChild(\''+s.id+'\')">'+esc(name)+'</button>';
+    }).join('') +
+  '</div>';
+}
+
 /* ---- PARENT-STUDENT LINK REQUEST ---- */
 function parentLinkRequestFormHtml() {
   return '<div class="card-title">Link your child\'s account</div>' +
@@ -2504,6 +2567,14 @@ function submitParentLinkRequestUI() {
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span> Sending...'; }
 
   function finish(studentId) {
+    var existingPending = ((State.liveData['parent-dashboard']||{}).linkRequests || []).some(function(r){
+      return r.status === 'pending' && r.student_id === studentId;
+    });
+    if (existingPending) {
+      if (btn) { btn.disabled = false; btn.innerHTML = restoreHtml; }
+      if (errEl) { errEl.textContent = 'You already have a pending request for this child.'; errEl.style.display = 'block'; }
+      return;
+    }
     DB.submitParentLinkRequest(uid, studentId).then(function(r) {
       if (btn) { btn.disabled = false; btn.innerHTML = restoreHtml; }
       if (r && r.error) {
@@ -2542,17 +2613,13 @@ function submitParentLinkRequestUI() {
 
 function renderParentDashboard() {
   if (isLoading('parent-dashboard')) return renderShell(parentNav(), Spinner(), 'Dashboard');
-  var d        = State.liveData['parent-dashboard'] || {};
-  var students = d.students || [];
-  var child    = students[0] || {};
-  var childName = (child.users && child.users.full_name) || 'your child';
-  var skills   = child.skill_map || [];
-  var sessions = child.sessions  || [];
-
-  var content = '<div class="page-header"><div><div class="page-title">Hello, '+esc(State.user.name.split(' ')[0])+'</div><div class="page-sub">Viewing progress for '+esc(childName)+'</div></div></div>';
+  var d           = State.liveData['parent-dashboard'] || {};
+  var students    = d.students || [];
+  var pendingReqs = (d.linkRequests || []).filter(function(r){ return r.status === 'pending'; });
 
   if (!students.length) {
-    var pendingReq = (d.linkRequests || []).filter(function(r){ return r.status === 'pending'; })[0];
+    var content = '<div class="page-header"><div><div class="page-title">Hello, '+esc(State.user.name.split(' ')[0])+'</div></div></div>';
+    var pendingReq = pendingReqs[0];
     if (pendingReq) {
       var reqName = (pendingReq.student && pendingReq.student.users && pendingReq.student.users.full_name) || 'your child';
       content += '<div class="card">'+EmptyState('ti-clock','Link request sent for '+reqName+'. An administrator will review it shortly.')+'</div>';
@@ -2561,6 +2628,14 @@ function renderParentDashboard() {
     }
     return renderShell(parentNav(), content, 'Dashboard');
   }
+
+  var child     = getSelectedChild(students);
+  var childName = (child.users && child.users.full_name) || 'your child';
+  var skills    = child.skill_map || [];
+  var sessions  = child.sessions  || [];
+
+  var content = '<div class="page-header"><div><div class="page-title">Hello, '+esc(State.user.name.split(' ')[0])+'</div><div class="page-sub">Viewing progress for '+esc(childName)+'</div></div></div>';
+  content += childSwitcherHtml(students);
 
   content += '<div class="stat-grid mb-24">';
   content += '<div class="stat-card"><div class="stat-icon g"><i class="ti ti-target-arrow"></i></div><div class="stat-val">'+(child.attendance_streak||0)+'</div><div class="stat-lbl">Week streak</div></div>';
@@ -2578,7 +2653,7 @@ function renderParentDashboard() {
     content += '</div>';
   }
 
-  content += '<div class="card"><div class="card-title">Skill map</div>';
+  content += '<div class="card mb-24"><div class="card-title">Skill map</div>';
   if (skills.length) {
     content += skills.map(function(sk){
       return '<div class="skill-row"><div class="skill-name">'+esc(sk.skill_name)+'</div><div class="skill-bar-wrap">'+ProgressBar(sk.progress_pct,sk.status==='mastered'?'mastered':sk.status==='progress'?'progress':'danger')+'</div><div class="skill-pct">'+sk.progress_pct+'%</div>'+StatusBadge(sk.status)+'</div>';
@@ -2588,15 +2663,35 @@ function renderParentDashboard() {
   }
   content += '</div>';
 
+  // Stays available after the first child is linked so a parent with more
+  // than one child can request each one individually — every request still
+  // goes through its own admin approval.
+  if (pendingReqs.length) {
+    content += '<div class="card mb-24"><div class="card-title">Pending link requests</div>';
+    content += pendingReqs.map(function(r){
+      var reqName = (r.student && r.student.users && r.student.users.full_name) || 'A child';
+      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-2);font-size:13px;color:var(--text-2)"><i class="ti ti-clock-hour-4"></i> '+esc(reqName)+' — awaiting admin review</div>';
+    }).join('');
+    content += '</div>';
+  }
+  content += '<div class="card">' + parentLinkRequestFormHtml() + '</div>';
+
   return renderShell(parentNav(), content, 'Dashboard');
 }
 
 function renderParentProgress() {
   if (isLoading('parent-progress')) return renderShell(parentNav(), Spinner(), 'Progress');
-  var d = State.liveData['parent-progress'] || {};
-  var child = (d.students||[])[0] || {};
+  var d        = State.liveData['parent-progress'] || {};
+  var students = d.students || [];
+  var content  = '<div class="page-header"><div><div class="page-title">Progress</div></div></div>';
+  if (!students.length) {
+    content += '<div class="card">' + EmptyState('ti-chart-line','Link your child\'s account from the Dashboard to see their progress.') + '</div>';
+    return renderShell(parentNav(), content, 'Progress');
+  }
+  content += childSwitcherHtml(students);
+  var child  = getSelectedChild(students);
   var skills = child.skill_map || [];
-  var content = '<div class="page-header"><div><div class="page-title">Progress</div></div></div><div class="card">';
+  content += '<div class="card">';
   if (skills.length) {
     content += skills.map(function(sk){
       return '<div class="skill-row"><div class="skill-name">'+esc(sk.skill_name)+'</div><div class="skill-bar-wrap">'+ProgressBar(sk.progress_pct,sk.status==='mastered'?'mastered':sk.status==='progress'?'progress':'danger')+'</div><div class="skill-pct">'+sk.progress_pct+'%</div>'+StatusBadge(sk.status)+'</div>';
@@ -2610,11 +2705,18 @@ function renderParentProgress() {
 
 function renderParentSessions() {
   if (isLoading('parent-sessions')) return renderShell(parentNav(), Spinner(), 'Sessions');
-  var d = State.liveData['parent-sessions'] || {};
-  var child = (d.students||[])[0] || {};
-  var sessions = child.sessions || [];
+  var d        = State.liveData['parent-sessions'] || {};
+  var students = d.students || [];
+  if (!students.length) {
+    var emptyContent = '<div class="page-header"><div><div class="page-title">Sessions</div></div></div><div class="card">' + EmptyState('ti-calendar','Link your child\'s account from the Dashboard to see their sessions.') + '</div>';
+    return renderShell(parentNav(), emptyContent, 'Sessions');
+  }
+  var child      = getSelectedChild(students);
+  var sessions   = child.sessions || [];
   var childName2 = (child.users && child.users.full_name) || 'your child';
-  var content = '<div class="page-header"><div><div class="page-title">Sessions</div><div class="page-sub">All sessions for '+esc(childName2)+'</div></div></div><div class="card">';
+  var content = '<div class="page-header"><div><div class="page-title">Sessions</div><div class="page-sub">All sessions for '+esc(childName2)+'</div></div></div>';
+  content += childSwitcherHtml(students);
+  content += '<div class="card">';
   if (sessions.length) {
     content += sessions.map(function(s){
       return '<div class="session-card"><div class="session-time"><div class="session-time-val">'+formatTime(s.scheduled_at)+'</div><div class="session-time-day">'+formatDate(s.scheduled_at)+'</div></div><div class="session-body"><div class="session-student">'+esc(childName2)+'</div><div class="session-meta"><i class="ti ti-clock"></i> '+(s.duration_minutes||60)+' min</div></div>'+sessionAttendanceBadge(s)+'</div>';
@@ -2629,10 +2731,23 @@ function renderParentSessions() {
 function renderParentMessages() {
   if (isLoading('parent-messages')) return renderShell(parentNav(), Spinner(), 'Messages');
   var d          = State.liveData['parent-messages'] || {};
-  var msgs       = d.messages || [];
-  var tutorId    = d.tutorId || null;
+  var allMsgs    = d.messages || [];
+  var students   = d.students || [];
 
   var content = '<div class="page-header"><div><div class="page-title">Messages</div><div class="page-sub">Messages with your child\'s tutor &middot; may be reviewed by platform admins for safety</div></div></div>';
+
+  if (!students.length) {
+    content += '<div class="card">' + EmptyState('ti-message-2','Link your child\'s account from the Dashboard to message their tutor.') + '</div>';
+    return renderShell(parentNav(), content, 'Messages');
+  }
+
+  content += childSwitcherHtml(students);
+  var child   = getSelectedChild(students);
+  var tutorId = child.tutor_id || null;
+  // Each linked child may have a different tutor — only show the thread
+  // with the currently selected child's tutor, never every child mixed together.
+  var msgs = tutorId ? allMsgs.filter(function(m){ return m.sender_id === tutorId || m.receiver_id === tutorId; }) : [];
+
   content += '<div class="card" style="display:flex;flex-direction:column">';
   content += '<div id="msg-list" style="overflow-y:auto;max-height:480px;padding:4px 0">';
   if (msgs.length) {

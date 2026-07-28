@@ -545,13 +545,18 @@ var DB = (function() {
     });
   }
 
-  function loadMessages(userId) {
+  // limit defaults to 50 (a single conversation's worth). A parent with
+  // multiple linked children shares this one query across each child's
+  // tutor thread, so callers with more than one thread on screen at once
+  // should scale it up — otherwise a busy thread can crowd a quieter one
+  // out of the shared top-N window entirely.
+  function loadMessages(userId, limit) {
     return q(function(){
       return _supabaseClient.from('messages')
         .select('*, sender:users!sender_id(full_name), receiver:users!receiver_id(full_name)')
         .or('sender_id.eq.' + userId + ',receiver_id.eq.' + userId)
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(limit || 50);
     }).then(function(r) { return (r.data || []).reverse(); });
   }
 
