@@ -3263,13 +3263,79 @@ function openAdminThread(pairKey) {
 function renderTerms() {
   var nav = '<nav class="nav"><div class="nav-logo"><div class="nav-logo-mark"><img src="icon-192.png" alt="Polaris" /></div><div><div class="nav-logo-text">Polaris</div></div></div><button class="btn btn-ghost" onclick="navigate(\'landing\')">Back to home</button></nav>';
   var footer = '<footer class="site-footer"><div class="footer-copy">© 2026 Polaris</div><div class="footer-links"><span class="footer-link" onclick="navigate(\'terms\')">Terms of Use</span><span class="footer-link" onclick="navigate(\'privacy\')">Privacy Policy</span><a class="footer-link" href="mailto:polaris.tutoring.support@gmail.com">Support</a></div></footer>';
-  return '<div style="min-height:100vh;background:var(--bg)">'+nav+'<div class="legal-page"><h1>Terms of Use</h1><div class="legal-date">Last updated: June 2026</div><p>Please read these Terms of Use carefully before using the Polaris tutoring platform. By accessing or using our platform, you agree to be bound by these terms.</p><div class="legal-divider"></div><h2>1. About the Platform</h2><p>Polaris is a free, nonprofit tutoring platform that connects K–12 students with qualified tutors for educational support. The platform is operated on a volunteer and community basis with no commercial intent.</p><h2>2. Eligibility</h2><p>To use this platform you must be a K–12 student, the parent or guardian of a K–12 student, or a qualified tutor — and must be approved by a program administrator before gaining full access.</p><h2>3. User Accounts</h2><p>You are responsible for maintaining the confidentiality of your account credentials. You agree to provide accurate and complete information during registration. Accounts may be suspended or terminated for misuse.</p><h2>4. Acceptable Use</h2><p>You agree not to harass or harm any other user, share inappropriate content, misrepresent your identity, use the platform commercially, or attempt unauthorised access.</p><h2>5. Sessions and Communication</h2><p>All sessions take place through designated video platforms. Communications within the platform may be reviewed by administrators for safety and quality purposes.</p><h2>6. Privacy and Minors</h2><p>We take the privacy of minors seriously. Student data is never sold or shared with third parties. Refer to our Privacy Policy for full details.</p><h2>7. Disclaimers</h2><p>Polaris provides this platform on an as-is basis and makes no guarantees regarding academic outcomes.</p><h2>8. Limitation of Liability</h2><p>To the fullest extent permitted by law, Polaris and its administrators shall not be liable for any indirect or consequential damages.</p><h2>9. Changes</h2><p>We may update these Terms periodically. Continued use after changes constitutes acceptance.</p><h2>10. Contact</h2><p>Questions? Email <a href="mailto:polaris.tutoring.support@gmail.com">polaris.tutoring.support@gmail.com</a></p></div>'+footer+'</div>';
+  var body = '<h1>Terms of Use</h1><div class="legal-date">Last updated: July 2026</div>' +
+    '<p>Polaris is a free, nonprofit tutoring platform that connects K–12 students with volunteer tutors. This page explains the rules for using Polaris. We\'ve written it in plain language on purpose. If anything here is unclear, contact us at <a href="mailto:polaris.tutoring.support@gmail.com">polaris.tutoring.support@gmail.com</a>.</p>' +
+    '<p><strong>Important note:</strong> Polaris is a volunteer-run nonprofit project, not a company with a legal department. This document is written to be honest about what we actually do — it is not a substitute for formal legal advice, and it does not create guarantees beyond what is stated here. We may update it as the platform grows; the "last updated" date above will change when we do.</p>' +
+    '<div class="legal-divider"></div>' +
+    '<h2>Who can use Polaris</h2>' +
+    '<p>Polaris is intended for K–12 students, their parents or guardians, volunteer tutors, and program administrators. Every account must be reviewed and approved by a program administrator before it can be used. We may decline or remove any account at our discretion, particularly to protect the safety of students.</p>' +
+    '<h2>Accounts and approval</h2>' +
+    '<ul>' +
+    '<li>When you sign up, your account stays pending until an administrator approves it.</li>' +
+    '<li>You are responsible for keeping your login details private and for the activity on your account.</li>' +
+    '<li>Please provide accurate information. Accounts created with false information may be removed.</li>' +
+    '</ul>' +
+    '<h2>Expected conduct</h2>' +
+    '<p>Because Polaris is used by children, we hold everyone to a high standard. When using Polaris you agree not to:</p>' +
+    '<ul>' +
+    '<li>Harass, bully, threaten, or abuse any other user.</li>' +
+    '<li>Contact students outside of what the platform is intended for, or attempt to arrange private contact that bypasses the platform\'s safeguards.</li>' +
+    '<li>Share content that is illegal, hateful, sexual, violent, or otherwise inappropriate for a platform used by minors.</li>' +
+    '<li>Attempt to access accounts or data that are not yours, or to break, misuse, or interfere with the platform.</li>' +
+    '</ul>' +
+    '<p>Tutors and adults interacting with students agree to behave appropriately and professionally at all times. Any conduct that puts a child at risk may result in immediate removal and, where appropriate, referral to relevant authorities.</p>' +
+    '<h2>The service is provided as-is</h2>' +
+    '<p>Polaris is a free, volunteer-run service. We work hard to keep it running and useful, but we cannot guarantee it will always be available, error-free, or uninterrupted. We are not liable for issues arising from use of the platform to the extent permitted by applicable law. Polaris connects students and tutors but is not responsible for the outcome of any individual tutoring relationship.</p>' +
+    '<h2>Changes and ending the service</h2>' +
+    '<p>Because this is a nonprofit project, we may change, pause, or discontinue Polaris. If we ever shut the platform down, we will make a reasonable effort to notify active users and to delete stored personal data rather than leaving it sitting unused.</p>';
+  return '<div style="min-height:100vh;background:var(--bg)">'+nav+'<div class="legal-page">'+body+'</div>'+footer+'</div>';
 }
 
 function renderPrivacy() {
   var nav = '<nav class="nav"><div class="nav-logo"><div class="nav-logo-mark"><img src="icon-192.png" alt="Polaris" /></div><div><div class="nav-logo-text">Polaris</div></div></div><button class="btn btn-ghost" onclick="navigate(\'landing\')">Back to home</button></nav>';
   var footer = '<footer class="site-footer"><div class="footer-copy">© 2026 Polaris</div><div class="footer-links"><span class="footer-link" onclick="navigate(\'terms\')">Terms of Use</span><span class="footer-link" onclick="navigate(\'privacy\')">Privacy Policy</span><a class="footer-link" href="mailto:polaris.tutoring.support@gmail.com">Support</a></div></footer>';
-  return '<div style="min-height:100vh;background:var(--bg)">'+nav+'<div class="legal-page"><h1>Privacy Policy</h1><div class="legal-date">Last updated: July 2026</div><p>Your privacy matters to us. This Policy explains what information we collect, how we use it, and how we protect it — particularly given that our platform serves minors.</p><div class="legal-divider"></div><h2>1. Information We Collect</h2><p>Account information (name, email, role), student profile data (grade, subject, learning style, goals), tutor profile data, session data, platform communications, and points records.</p><h2>2. How We Use It</h2><p>Exclusively to match students with tutors, track academic progress, send session reminders, administer the points system, maintain tutor hour records, and ensure user safety.</p><h2>3. Protection of Minors</h2><p>Parental consent is required for students. Student data is never shared publicly. Students only interact with vetted, approved tutors.</p><h2>4. Message Monitoring</h2><p>Message monitoring: To keep students safe, platform administrators can review messages sent between students, tutors, and parents on Polaris. We do this only for safeguarding — to protect minors and make sure the platform is used appropriately. We do not sell, share, or use these messages for advertising, analytics, or any purpose other than safety and support. Messages are stored securely and access is limited to authorized administrators.</p><h2>5. Data Sharing</h2><p>We do not sell or share your data with advertisers. Data is shared only with administrators, parents regarding their child, service providers necessary to operate the platform, or when required by law.</p><h2>6. Security</h2><p>Data is stored using Supabase with enterprise-grade encryption and row-level security so users only access authorised data.</p><h2>7. Your Rights</h2><p>You may access, correct, or request deletion of your data by contacting polaris.tutoring.support@gmail.com.</p><h2>8. Cookies</h2><p>We use minimal session storage only. No advertising cookies or third-party tracking.</p><h2>9. Retention</h2><p>Data is retained while your account is active. Upon deletion, personal data is removed within 30 days.</p><h2>10. Contact</h2><p>Privacy questions: <a href="mailto:polaris.tutoring.support@gmail.com">polaris.tutoring.support@gmail.com</a></p></div>'+footer+'</div>';
+  var body = '<h1>Privacy Policy</h1><div class="legal-date">Last updated: July 2026</div>' +
+    '<p>Polaris is a free, nonprofit tutoring platform that connects K–12 students with volunteer tutors. This page explains how we handle your information. We\'ve written it in plain language on purpose. If anything here is unclear, contact us at <a href="mailto:polaris.tutoring.support@gmail.com">polaris.tutoring.support@gmail.com</a>.</p>' +
+    '<p><strong>Important note:</strong> Polaris is a volunteer-run nonprofit project, not a company with a legal department. This document is written to be honest about what we actually do — it is not a substitute for formal legal advice, and it does not create guarantees beyond what is stated here. We may update it as the platform grows; the "last updated" date above will change when we do.</p>' +
+    '<div class="legal-divider"></div>' +
+    '<p>We collect the minimum we need to run a tutoring platform, and we don\'t sell anyone\'s data — ever. Here\'s the detail.</p>' +
+    '<h2>What we collect</h2>' +
+    '<ul>' +
+    '<li><strong>Account information:</strong> name, email address, role (student, tutor, parent, or admin), and account status.</li>' +
+    '<li><strong>Profile and matching information:</strong> for students and tutors, the answers to the onboarding quiz (subjects, learning or teaching style, pace, preferences, grade level, goals, bio). This is used to match students with suitable tutors.</li>' +
+    '<li><strong>Activity within the platform:</strong> sessions, homework and homework submissions (including any photos a student uploads), session notes written by tutors, progress and skill data, points and rewards, and messages sent between users.</li>' +
+    '<li><strong>Parent–child links:</strong> which parent account is connected to which student, once an administrator approves the link.</li>' +
+    '</ul>' +
+    '<p>We do not use tracking cookies or third-party advertising trackers. We do not run ads. We do not build advertising profiles.</p>' +
+    '<h2>How we use it</h2>' +
+    '<p>We use this information only to operate the platform: to create and approve accounts, match students with tutors, schedule and support tutoring sessions, assign and submit homework, track progress, run the points/rewards system, and let users message each other.</p>' +
+    '<h2>Message monitoring (safeguarding)</h2>' +
+    '<p>To keep students safe, program administrators can review messages sent between students, tutors, and parents on Polaris. We do this only for safeguarding — to protect minors and make sure the platform is used appropriately. We do not sell, share, or use these messages for advertising, analytics, or any purpose other than safety and support. Messages are stored securely and access is limited to authorized administrators.</p>' +
+    '<h2>Children\'s information</h2>' +
+    '<p>Polaris is designed for K–12 students, so we knowingly handle children\'s information, and we take that seriously.</p>' +
+    '<ul>' +
+    '<li>Every account, including every student account, is reviewed and approved by a program administrator before it becomes active.</li>' +
+    '<li>Parents or guardians can request to be linked to their child\'s account. This link is only created after an administrator approves it — a parent cannot link themselves to any child on their own.</li>' +
+    '<li>We collect only what the platform needs to function and do not use children\'s information for marketing or advertising.</li>' +
+    '</ul>' +
+    '<p>If you are a parent or guardian and have any concern about your child\'s information, contact us at <a href="mailto:polaris.tutoring.support@gmail.com">polaris.tutoring.support@gmail.com</a> and we will help.</p>' +
+    '<h2>Who can see what</h2>' +
+    '<ul>' +
+    '<li>Students, tutors, and parents see only the information relevant to their own accounts and their own connections (for example, a parent sees only the child or children officially linked to them).</li>' +
+    '<li>Administrators can see account and platform data as needed to run and safeguard the service.</li>' +
+    '<li>We do not share personal information with outside parties for their own use.</li>' +
+    '</ul>' +
+    '<h2>Where your data is stored</h2>' +
+    '<p>Polaris runs on third-party infrastructure providers (including Supabase for our database and authentication, and Vercel for hosting). Your data is stored on their systems, which may be located outside your country. These providers process data on our behalf to make the platform work; we do not authorize them to use it for their own purposes.</p>' +
+    '<h2>Keeping data secure</h2>' +
+    '<p>We use access controls so that users can only reach data they\'re permitted to see, and passwords are stored in a securely hashed form — nobody, including administrators, can read your actual password. No online service can promise perfect security, but we take reasonable steps to protect your information.</p>' +
+    '<h2>Deleting your data</h2>' +
+    '<p>You can ask us to delete your account and personal information at any time by emailing <a href="mailto:polaris.tutoring.support@gmail.com">polaris.tutoring.support@gmail.com</a>. We can and will delete it manually on request. We keep information only as long as it\'s needed to run the platform or as required for safety reasons.</p>' +
+    '<h2>How long we keep it</h2>' +
+    '<p>We keep your information while your account is active. If your account is closed, or if you ask us to delete it, we remove your personal information. Some records may be kept temporarily where needed for safeguarding, but we do not keep data longer than necessary.</p>' +
+    '<h2>Contact</h2>' +
+    '<p>For any question about these terms, your privacy, your data, or to request deletion, contact us at <a href="mailto:polaris.tutoring.support@gmail.com">polaris.tutoring.support@gmail.com</a>.</p>';
+  return '<div style="min-height:100vh;background:var(--bg)">'+nav+'<div class="legal-page">'+body+'</div>'+footer+'</div>';
 }
 
 /* ============================================
